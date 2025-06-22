@@ -7,7 +7,7 @@ from functools import wraps
 from datetime import datetime
 
 app = Flask(__name__)
-app.secret_key = "your_secret_key_here"  # セキュリティのためランダムに変えてね
+app.secret_key = "93fjdslf9348jdklsfjjf92jfksl3439jf"  # セキュリティのためランダムに変えてね
 
 API_KEY = "AIzaSyCnrIVkU4DjK_8IipJ9AC8ABC_70p5Zoo0"  # ここに自分のAPIキーを入れてね
 LIVE_CHAT_ID = ""
