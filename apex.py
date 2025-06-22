@@ -9,7 +9,7 @@ from datetime import datetime
 app = Flask(__name__)
 app.secret_key = "your_secret_key_here"  # セキュリティのためランダムに変えてね
 
-API_KEY = "YOUR_YOUTUBE_API_KEY"  # ここに自分のAPIキーを入れてね
+API_KEY = "AIzaSyCnrIVkU4DjK_8IipJ9AC8ABC_70p5Zoo0"  # ここに自分のAPIキーを入れてね
 LIVE_CHAT_ID = ""
 participants = []
 candidates = {}
