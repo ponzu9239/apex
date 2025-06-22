@@ -11,15 +11,16 @@ app.secret_key = "好きなランダム文字列をここに入れてね"  # セ
 
 API_KEY = "AIzaSyCnrIVkU4DjK_8IipJ9AC8ABC_70p5Zoo0"
 
-# 管理者パスワード（必ず変更してください）
+# 管理者パスワード（適宜変更してください）
 ADMIN_PASSWORD = "your_password_here"
 
+# グローバル変数
 LIVE_CHAT_ID = None
 participants = []
 processed_msg_ids = set()
 live_chat_id_lock = threading.Lock()
 
-# 緩い参加・辞退キーワード（部分一致で判定）
+# 緩い参加・辞退キーワード（部分一致OK）
 join_keywords = ["参加", "さんか", "出たい", "出ます", "入りたい", "行きたい", "希望", "はいり", "入る", "エントリー", "エントリ"]
 cancel_keywords = ["やめ", "辞退", "抜け", "キャンセル", "やらない", "やめとく", "離脱", "辞める", "抜ける"]
 
@@ -60,14 +61,7 @@ def login():
     </html>
     """, error=error)
 
-# ログアウト
-@app.route("/logout")
-@login_required
-def logout():
-    session.pop("logged_in", None)
-    return redirect(url_for("login"))
-
-# 管理者ページ（URL設定＆参加者削除）
+# 管理者ページ（ライブURL設定フォーム）
 @app.route("/admin", methods=["GET", "POST"])
 @login_required
 def admin():
@@ -93,20 +87,10 @@ def admin():
                     processed_msg_ids.clear()
                 message = f"✅ ライブチャットIDを設定しました。現在監視中のVideo ID: {video_id}"
 
-    participants_html = ""
-    for p in participants:
-        safe_name = p.replace("'", "\\'").replace('"', '\\"')
-        participants_html += f"""
-            <li>{p} <button onclick="removeParticipant('{safe_name}')">削除</button></li>
-        """
-
     html = f"""
     <!DOCTYPE html>
     <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>管理者ページ</title>
-    </head>
+    <head><meta charset="UTF-8"><title>管理者ページ</title></head>
     <body style="font-family:sans-serif; padding:2em;">
         <h1>管理者ページ - ライブURL設定</h1>
         <form method="post">
@@ -116,50 +100,21 @@ def admin():
         <p>{message}</p>
         <hr>
         <p>現在の監視中ライブチャットID:<br>{LIVE_CHAT_ID or '未設定'}</p>
-
-        <h2>参加者リスト（管理者用）</h2>
-        <ul id="participant-list">
-            {participants_html or "<li>まだ誰もいません</li>"}
-        </ul>
-
         <p><a href="/viewer">参加者リストページへ</a></p>
         <p><a href="/logout">ログアウト</a></p>
-
-        <script>
-            async function removeParticipant(name) {{
-                if(!confirm(name + "さんを削除しますか？")) return;
-                const res = await fetch("/admin/remove_participant", {{
-                    method: "POST",
-                    headers: {{
-                        "Content-Type": "application/json"
-                    }},
-                    body: JSON.stringify({{name}})
-                }});
-                if(res.ok) {{
-                    location.reload();
-                }} else {{
-                    alert("削除に失敗しました");
-                }}
-            }}
-        </script>
     </body>
     </html>
     """
     return render_template_string(html)
 
-# 削除用API（管理者限定）
-@app.route("/admin/remove_participant", methods=["POST"])
+# ログアウト処理
+@app.route("/logout")
 @login_required
-def remove_participant():
-    global participants
-    data = request.get_json()
-    name = data.get("name", "")
-    if name in participants:
-        participants.remove(name)
-        return jsonify({"result": "success"})
-    return jsonify({"result": "not found"}), 404
+def logout():
+    session.pop("logged_in", None)
+    return redirect(url_for("login"))
 
-# 参加者リストページ（誰でも閲覧可）
+# 参加者リストページ（自動更新対応）
 @app.route("/viewer")
 def viewer():
     html = """
@@ -201,12 +156,12 @@ def viewer():
     """
     return render_template_string(html)
 
-# 参加者API
+# 参加者API（JSON返し）
 @app.route("/api/participants")
 def api_participants():
     return jsonify({"participants": participants})
 
-# YouTube APIでライブチャットID取得
+# YouTube APIでライブチャットIDを取得
 def get_live_chat_id(video_id):
     try:
         url = "https://www.googleapis.com/youtube/v3/videos"
@@ -227,7 +182,7 @@ def get_live_chat_id(video_id):
         print("Error getting live chat ID:", e)
         return None
 
-# URLからVideoID抽出
+# URLからVideoID抽出（正規表現で対応）
 def extract_video_id(url):
     patterns = [
         r"(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([^&]+)",
@@ -271,13 +226,13 @@ def fetch_live_chat_messages():
                 msg_text = item["snippet"]["textMessageDetails"]["messageText"].strip().lower()
                 author = item["authorDetails"]["displayName"]
 
-                # ゆるい参加判定
+                # 緩い参加判定
                 if any(kw in msg_text for kw in join_keywords):
                     if author not in participants:
                         participants.append(author)
                         print(f"✅ 参加者追加: {author}")
 
-                # ゆるい辞退判定
+                # 緩い辞退判定
                 elif any(kw in msg_text for kw in cancel_keywords):
                     if author in participants:
                         participants.remove(author)
