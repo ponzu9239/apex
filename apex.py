@@ -6,19 +6,19 @@ from flask import Flask, jsonify, render_template_string
 
 app = Flask(__name__)
 
-# 🔑 環境変数またはハードコード（安全な場所で管理推奨）
+# 🔑 API情報（ここは自分のに書き換えてね）
 API_KEY = "AIzaSyCnrIVkU4DjK_8IipJ9AC8ABC_70p5Zoo0"
 LIVE_CHAT_ID = "Cg0KC2lKNUhLQklLNlMwKicKGFVDYWx3NkF0YnV1NVNOS3dlUkpCMHVRZxILaUo1SEtCSUs2UzA"
 
 participants = []
 processed_msg_ids = set()
 
-# 🌐 ホーム（確認用）
+# 🌐 ホームページ（動作確認用）
 @app.route("/")
 def home():
     return "ホームページだよ！"
 
-# 🌐 viewer画面にリストを表示
+# 🌐 viewer画面（参加者リスト表示）
 @app.route("/viewer")
 def viewer():
     list_html = "<br>".join(f"{i+1}. {name}" for i, name in enumerate(participants))
@@ -33,14 +33,19 @@ def viewer():
     """
     return render_template_string(html)
 
-# 🔁 APIで参加者リスト（使わないなら削除OK）
+# 🔁 API（オプション）
 @app.route("/api/participants")
 def api_participants():
     return jsonify({"participants": participants})
 
-# 🎥 YouTubeライブチャットから定期取得
+# 🎥 YouTubeチャット監視
 def fetch_live_chat_messages():
     global participants, processed_msg_ids
+
+    # 🔍 参加・辞退の判定用キーワード
+    join_keywords = ["参加", "さんか", "出たい", "出ます", "入りたい", "行きたい", "希望"]
+    cancel_keywords = ["やめ", "辞退", "抜け", "キャンセル", "やらない", "やめとく", "離脱"]
+
     while True:
         try:
             url = "https://www.googleapis.com/youtube/v3/liveChat/messages"
@@ -62,11 +67,11 @@ def fetch_live_chat_messages():
                 msg_text = item["snippet"]["textMessageDetails"]["messageText"].strip().lower()
                 author = item["authorDetails"]["displayName"]
 
-                if msg_text == "参加希望":
+                if any(kw in msg_text for kw in join_keywords):
                     if author not in participants:
                         participants.append(author)
                         print(f"✅ 参加者追加: {author}")
-                elif msg_text == "やめます":
+                elif any(kw in msg_text for kw in cancel_keywords):
                     if author in participants:
                         participants.remove(author)
                         print(f"❌ 参加者削除: {author}")
@@ -74,9 +79,9 @@ def fetch_live_chat_messages():
         except Exception as e:
             print("⚠️ エラー:", e)
 
-        time.sleep(5)  # 🔁 5秒ごとにチェック
+        time.sleep(5)  # ⏳ 5秒ごとにチェック
 
-# 🚀 起動（Renderでも動くようにPORT環境変数に対応）
+# 🚀 アプリ起動（Render対応）
 if __name__ == "__main__":
     threading.Thread(target=fetch_live_chat_messages, daemon=True).start()
     port = int(os.environ.get("PORT", 10000))
