@@ -7,10 +7,11 @@ from functools import wraps
 app = Flask(__name__)
 app.secret_key = "好きなランダム文字列をここに入れてね"  # セッション用の秘密キー
 
-API_KEY = "YOUR_API_KEY"        # 自分のAPIキーに書き換えてください
-LIVE_CHAT_ID = "YOUR_LIVE_CHAT_ID"  # 自分のライブチャットIDに書き換えてください
+# ↓↓ 必ず自分のAPIキーとLIVE_CHAT_IDに書き換えてください ↓↓
+API_KEY = "YOUR_API_KEY"
+LIVE_CHAT_ID = "YOUR_LIVE_CHAT_ID"
 
-# 管理者ログイン用パスワード（好きなものに変えてください）
+# 管理者ログイン用パスワード（好きなものに変えてOK）
 ADMIN_PASSWORD = "your_password_here"
 
 participants = []
@@ -18,14 +19,11 @@ processed_msg_ids = set()
 
 # 参加希望キーワード（漢字＋ひらがな大量版）
 join_keywords = [
-    # 漢字系
     "参加", "参戦", "出場", "出場希望", "参加希望", "参加申込", "参加申請", "参加受付",
     "申し込み", "応募", "入隊", "加入", "加入希望", "入場", "出席", "出席希望", "入場希望",
     "出撃", "参入", "参画", "参加申請します", "参加表明", "参加決定", "参戦希望", "エントリー",
     "参加可能", "出場可能", "参戦可能", "参加中", "参加登録", "参加承認", "参加賛同", "加入申請",
     "申し込み済み", "参加登録済み", "出場登録", "参加申込済み",
-
-    # ひらがな系
     "さんか", "さんかします", "さんかしたい", "さんかする", "さんかおねがい", "はいりたい", "はいります",
     "はいる", "はいるよ", "はいってもいい", "はいるね", "いりたい", "いります", "いります！",
     "でたい", "でます", "でる", "でるよ", "でます！", "でたいです", "しゅつじょう", "しゅつじょうきぼう",
@@ -36,7 +34,6 @@ join_keywords = [
 
 # 辞退・やめるキーワード（漢字＋ひらがな大量版）
 cancel_keywords = [
-    # 漢字系
     "辞退", "退出", "脱退", "離脱", "撤退", "放棄", "キャンセル", "辞退します", "退出します",
     "脱退します", "離脱します", "撤退します", "放棄します", "キャンセルします", "辞退した",
     "退出した", "脱退した", "離脱した", "撤退した", "放棄した", "キャンセルした", "やめる",
@@ -45,8 +42,6 @@ cancel_keywords = [
     "参加やめます", "参加やめたい", "参加しません", "参加停止", "参加断念", "もう出ません", "もうやりません",
     "降ります", "降参", "脱落", "放棄", "断念", "離脱申請", "離脱希望", "脱退申請", "退会", "退席",
     "脱会", "退場", "離席", "去ります", "退出申請", "退出希望",
-
-    # ひらがな系
     "やめ", "やめます", "やめたい", "やめとく", "やめときます", "やらない", "もうやらない", "きゃんせる",
     "きゃんせるします", "きゃんせるした", "じたい", "じたいします", "じたいした", "ぬけ", "ぬけます",
     "ぬけたい", "りだつ", "りだつします", "たいかい", "たいかいします", "きょひ", "きょひします",
@@ -82,7 +77,7 @@ viewer_html = """
                 ul.appendChild(li);
             });
         }
-        setInterval(loadList, 2000);
+        setInterval(loadList, 2000);  // 2秒ごとに自動更新
         loadList();
     </script>
 </body>
@@ -107,8 +102,7 @@ login_html = """
 </html>
 """
 
-# 管理者認証用デコレータ
-from functools import wraps
+# 管理者認証デコレータ
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -140,12 +134,13 @@ def login():
             return render_template_string(login_html, error="パスワードが違います")
     return render_template_string(login_html, error=None)
 
-@app.route("/admin", methods=["GET", "POST"])
+@app.route("/admin")
 @login_required
 def admin():
+    # 管理者画面の内容は自由に拡張できます
     return """
     <h1>管理者画面</h1>
-    <p>ここで参加者管理などの機能を追加できます。</p>
+    <p>ここに参加者管理機能や設定画面を追加しましょう。</p>
     <p><a href="/logout">ログアウト</a></p>
     """
 
@@ -178,7 +173,7 @@ def fetch_live_chat_messages():
                 msg_text = item["snippet"]["textMessageDetails"]["messageText"].strip().lower()
                 author = item["authorDetails"]["displayName"]
 
-                # 参加希望判定（ゆるくキーワードが文中に含まれたらOK）
+                # 参加希望判定（コメント中にキーワードが含まれていたらOK）
                 if any(kw in msg_text for kw in join_keywords):
                     if author not in participants:
                         participants.append(author)
@@ -192,9 +187,10 @@ def fetch_live_chat_messages():
         except Exception as e:
             print("⚠️ エラー:", e)
 
-        time.sleep(5)
+        time.sleep(5)  # 5秒に1回チェック
 
 if __name__ == "__main__":
     threading.Thread(target=fetch_live_chat_messages, daemon=True).start()
-    print("🌐 サンカリスト → http://localhost:8000/viewer")
+    print("🌐 参加者リスト → http://localhost:8000/viewer")
+    print("🔐 管理者ログイン → http://localhost:8000/login")
     app.run(host="0.0.0.0", port=8000)
