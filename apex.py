@@ -1,32 +1,18 @@
 import time
 import threading
 import requests
-import re
 from flask import Flask, request, jsonify, render_template_string, redirect, url_for, session
 from functools import wraps
 from datetime import datetime
 
 app = Flask(__name__)
-app.secret_key = "93fjdslf9348jdklsfjjf92jfksl3439jf"  # セキュリティのためランダムに変えてね
+app.secret_key = "your_secret_key_here"
 
-API_KEY = "AIzaSyCnrIVkU4DjK_8IipJ9AC8ABC_70p5Zoo0"  # ここに自分のAPIキーを入れてね
+API_KEY = "YOUR_YOUTUBE_API_KEY"
 LIVE_CHAT_ID = ""
 participants = []
 candidates = {}
 processed_msg_ids = set()
-
-def extract_video_id(url):
-    # 動画ID抽出パターン
-    m = re.search(r"v=([a-zA-Z0-9_-]{11})", url)
-    if m:
-        return m.group(1)
-    m = re.search(r"youtu\.be/([a-zA-Z0-9_-]{11})", url)
-    if m:
-        return m.group(1)
-    m = re.search(r"live/([a-zA-Z0-9_-]{11})", url)
-    if m:
-        return m.group(1)
-    return None
 
 def login_required(f):
     @wraps(f)
@@ -39,7 +25,7 @@ def login_required(f):
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        if request.form.get("password") == "adminpass":  # パスワードここで設定してるよ
+        if request.form.get("password") == "adminpass":
             session["logged_in"] = True
             return redirect("/admin")
         return "パスワードが違います"
@@ -60,41 +46,23 @@ def admin():
     current_url = request.form.get("live_url") if request.method == "POST" else ""
 
     if request.method == "POST" and current_url:
-        video_id = extract_video_id(current_url)
-        if not video_id:
-            message = "❌ URLから動画IDを抽出できません。正しいURLを入れてください。"
-        else:
-            try:
-                res = requests.get("https://www.googleapis.com/youtube/v3/videos", params={
-                    "id": video_id,
-                    "part": "liveStreamingDetails",
-                    "key": API_KEY
-                })
-                res.raise_for_status()
-                data = res.json()
-                LIVE_CHAT_ID = data["items"][0]["liveStreamingDetails"].get("activeLiveChatId", "")
-                if LIVE_CHAT_ID:
-                    message = f"✅ ライブチャットID取得成功: {LIVE_CHAT_ID}"
-                else:
-                    message = "❌ ライブチャットIDが取得できません。ライブ配信中か、ライブチャットが有効か確認してください。"
-            except Exception as e:
-                message = f"❌ エラー発生: {e}"
+        try:
+            video_id = current_url.split("v=")[-1].split("&")[0].split("/")[-1]
+            res = requests.get("https://www.googleapis.com/youtube/v3/videos", params={
+                "id": video_id,
+                "part": "liveStreamingDetails",
+                "key": API_KEY
+            })
+            res.raise_for_status()
+            data = res.json()
+            LIVE_CHAT_ID = data["items"][0]["liveStreamingDetails"]["activeLiveChatId"]
+            message = f"✅ 設定完了: {LIVE_CHAT_ID}"
+        except Exception as e:
+            message = f"❌ エラー: {e}"
 
-    participant_list_html = ''.join(
-        f'<li><img src="{p["icon"]}" width="24" style="vertical-align:middle;"> {i+1}. {p["name"]} ({p["time"]}) '
-        f'<form method="post" action="/remove" style="display:inline;">'
-        f'<input type="hidden" name="name" value="{p["name"]}">'
-        f'<button type="submit">削除</button></form></li>'
-        for i, p in enumerate(participants)
-    )
+    participant_list_html = ''.join(f'<li><img src="{p["icon"]}" width="24"> {i+1}. {p["name"]} ({p["time"]}) <form method="post" action="/remove" style="display:inline;"><input type="hidden" name="name" value="{p["name"]}"><button type="submit">削除</button></form></li>' for i, p in enumerate(participants))
 
-    candidate_list_html = ''.join(
-        f'<li><img src="{icon}" width="24" style="vertical-align:middle;"> {name} '
-        f'<form method="post" action="/add_from_candidate" style="display:inline;">'
-        f'<input type="hidden" name="name" value="{name}">'
-        f'<button type="submit">参加に追加</button></form></li>'
-        for name, icon in candidates.items() if name not in [p['name'] for p in participants]
-    )
+    candidate_list_html = ''.join(f'<li><img src="{icon}" width="24"> {name} <form method="post" action="/add_from_candidate" style="display:inline;"><input type="hidden" name="name" value="{name}"><button type="submit">参加に追加</button></form></li>' for name, icon in candidates.items() if name not in [p['name'] for p in participants])
 
     html = f"""
     <!DOCTYPE html>
@@ -154,17 +122,17 @@ def viewer():
         <h1>📋 参加者リスト</h1>
         <ul id='list'><li>読み込み中...</li></ul>
         <script>
-            async function loadList() {{
+            async function loadList() {
                 const res = await fetch("/api/participants");
                 const data = await res.json();
                 const ul = document.getElementById("list");
                 ul.innerHTML = "";
-                data.participants.forEach((p, i) => {{
+                data.participants.forEach((p, i) => {
                     const li = document.createElement("li");
-                    li.innerHTML = `<img src="${{p.icon}}" width="24" style="vertical-align:middle;"> ${{i + 1}}. ${{p.name}} (${{p.time}})`;
+                    li.innerHTML = `<img src="${p.icon}" width="24"> ${i + 1}. ${p.name} (${p.time})`;
                     ul.appendChild(li);
-                }});
-            }}
+                });
+            }
             setInterval(loadList, 2000);
             loadList();
         </script>
@@ -205,20 +173,15 @@ def fetch_live_chat_messages():
                 icon_url = item["authorDetails"].get("profileImageUrl", "")
                 candidates[author] = icon_url
 
-                # 参加希望判定（ゆるめ）
                 if any(kw in msg_text for kw in ["参加", "入り", "いれ", "さんか", "希望"]):
                     if author not in [p['name'] for p in participants]:
                         participants.append({"name": author, "time": datetime.now().strftime("%H:%M:%S"), "icon": icon_url})
                         print(f"✅ 参加者追加: {author}")
-
-                # やめる判定（ゆるめ）
-                elif any(kw in msg_text for kw in ["やめ", "ぬけ", "キャンセル", "抜け"]):
+                elif any(kw in msg_text for kw in ["やめ", "ぬけ", "やめと", "キャンセル", "抜け"]):
                     participants = [p for p in participants if p['name'] != author]
                     print(f"❌ 参加者削除: {author}")
-
         except Exception as e:
             print("⚠️ エラー:", e)
-
         time.sleep(5)
 
 if __name__ == "__main__":
