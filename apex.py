@@ -8,9 +8,9 @@ from functools import wraps
 from datetime import datetime
 
 app = Flask(__name__)
-app.secret_key = "your_secret_here"  # セッション用の秘密鍵を必ず設定してください
+app.secret_key = "your_secret_here"
 
-API_KEY = "AIzaSyCoPuKVZtMbk5vVlLv1z8JGPTBCmbRz164"
+API_KEY = "YOUR_API_KEY"
 ADMIN_PASSWORD = "your_password_here"
 
 LIVE_CHAT_ID = None
@@ -22,7 +22,6 @@ lock = threading.Lock()
 join_keywords = ["参加", "さんか", "出たい", "出ます", "入りたい", "行きたい", "希望", "はいり", "入る", "エントリー"]
 cancel_keywords = ["やめ", "辞退", "抜け", "キャンセル", "やらない", "やめとく", "離脱", "辞める", "抜ける"]
 
-# ログイン必須
 def login_required(f):
     @wraps(f)
     def wrapped(*args, **kwargs):
@@ -31,7 +30,6 @@ def login_required(f):
         return f(*args, **kwargs)
     return wrapped
 
-# ログイン画面
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -51,16 +49,15 @@ def logout():
     session.pop("logged_in", None)
     return redirect("/login")
 
-# 管理者ページ
 @app.route("/admin", methods=["GET", "POST"])
 @login_required
 def admin():
     global LIVE_CHAT_ID
     message = ""
-    current_url = ""
+    url = ""
     if request.method == "POST":
-        current_url = request.form.get("live_url", "")
-        video_id = extract_video_id(current_url)
+        url = request.form.get("live_url", "")
+        video_id = extract_video_id(url)
         if video_id:
             chat_id = get_live_chat_id(video_id)
             if chat_id:
@@ -74,24 +71,24 @@ def admin():
         else:
             message = "❌ 無効なURLです"
 
-    part_list = ''.join(f'<li>{i+1}. {p["name"]} ({p["time"]}) <form method="post" action="/remove"><input type="hidden" name="name" value="{p["name"]}"><button>削除</button></form></li>' for i, p in enumerate(participants))
-    cand_list = ''.join(f'<li>{name} <form method="post" action="/add"><input type="hidden" name="name" value="{name}"><button>追加</button></form></li>' for name in candidates if name not in [p["name"] for p in participants])
+    part_list = ''.join(f'<li>{i+1}. {p["name"]} ({p["time"]}) <form method="post" action="/remove" style="display:inline;"><input type="hidden" name="name" value="{p["name"]}"><button>削除</button></form></li>' for i, p in enumerate(participants))
+    cand_list = ''.join(f'<li>{name} <form method="post" action="/add" style="display:inline;"><input type="hidden" name="name" value="{name}"><button>追加</button></form></li>' for name in candidates if name not in [p["name"] for p in participants])
 
     return f'''
     <h1>管理者ページ</h1>
     <form method="post">
-        <input type="text" name="live_url" value="{current_url}" placeholder="YouTubeライブURL">
+        <input type="text" name="live_url" value="{url}" placeholder="YouTubeライブURLを入力">
         <button>設定</button>
     </form>
     <p>{message}</p>
     <h2>参加者リスト（{len(participants)}人）</h2>
     <ul>{part_list or "<li>なし</li>"}</ul>
-    <h2>候補者リスト</h2>
+    <h2>候補者リスト（コメントしたけど参加希望してない人）</h2>
     <ul>{cand_list or "<li>なし</li>"}</ul>
-    <a href="/viewer">▶視聴者用ページ</a> / <a href="/logout">ログアウト</a>
+    <p><a href="/viewer">▶ 一般画面へ</a></p>
+    <p><a href="/logout">ログアウト</a></p>
     '''
 
-# 削除処理
 @app.route("/remove", methods=["POST"])
 @login_required
 def remove():
@@ -100,7 +97,6 @@ def remove():
     participants = [p for p in participants if p["name"] != name]
     return redirect("/admin")
 
-# 候補から追加
 @app.route("/add", methods=["POST"])
 @login_required
 def add():
@@ -109,7 +105,6 @@ def add():
         participants.append({"name": name, "time": datetime.now().strftime("%H:%M:%S")})
     return redirect("/admin")
 
-# 視聴者画面
 @app.route("/viewer")
 def viewer():
     return '''
@@ -158,7 +153,6 @@ def get_live_chat_id(video_id):
         print("💥 Chat ID取得エラー:", e)
         return None
 
-# チャット監視
 def monitor_chat():
     while True:
         time.sleep(5)
