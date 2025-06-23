@@ -10,7 +10,7 @@ from datetime import datetime
 app = Flask(__name__)
 app.secret_key = "your_secret_here"
 
-API_KEY = "YOUR_API_KEY"
+API_KEY = "AIzaSyCoPuKVZtMbk5vVlLv1z8JGPTBCmbRz164"
 ADMIN_PASSWORD = "your_password_here"
 
 LIVE_CHAT_ID = None
