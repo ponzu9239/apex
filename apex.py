@@ -6,7 +6,7 @@ from functools import wraps
 from datetime import datetime
 
 app = Flask(__name__)
-app.secret_key = "your_secret_key_here"
+app.secret_key = "AIzaSyCoPuKVZtMbk5vVlLv1z8JGPTBCmbRz164"
 
 API_KEY = "YOUR_YOUTUBE_API_KEY"
 LIVE_CHAT_ID = ""
