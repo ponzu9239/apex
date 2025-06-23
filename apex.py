@@ -3,6 +3,7 @@ import threading
 import requests
 import os
 import re
+import socket
 from flask import Flask, jsonify, render_template_string, request, session, redirect, url_for
 from functools import wraps
 from datetime import datetime
@@ -11,7 +12,12 @@ app = Flask(__name__)
 app.secret_key = "your_secret_here"
 
 API_KEY = "AIzaSyCoPuKVZtMbk5vVlLv1z8JGPTBCmbRz164"
-ADMIN_PASSWORD = "your_password_here"
+ADMIN_PASSWORD = "cat1234"
+MODE = "youtube"  # "youtube" または "twitch"
+
+TWITCH_NICK = "ponzu9239"
+TWITCH_TOKEN = "oauth:izblz7bqe9nsmp5wq49vqi6dchayrx"
+TWITCH_CHANNEL = "catkungame"
 
 LIVE_CHAT_ID = None
 participants = []
@@ -37,12 +43,7 @@ def login():
             session["logged_in"] = True
             return redirect("/admin")
         return "パスワードが違います"
-    return '''
-    <form method="post">
-        パスワード: <input type="password" name="password">
-        <button type="submit">ログイン</button>
-    </form>
-    '''
+    return '''<form method="post">パスワード: <input type="password" name="password"><button type="submit">ログイン</button></form>'''
 
 @app.route("/logout")
 def logout():
@@ -65,28 +66,28 @@ def admin():
                     LIVE_CHAT_ID = chat_id
                     participants.clear()
                     processed_msg_ids.clear()
+                    candidates.clear()
                 message = f"✅ 設定完了: {chat_id}"
             else:
                 message = "❌ ライブチャットIDが取得できません。ライブ中ですか？"
         else:
             message = "❌ 無効なURLです"
 
-    part_list = ''.join(f'<li>{i+1}. {p["name"]} ({p["time"]}) <form method="post" action="/remove" style="display:inline;"><input type="hidden" name="name" value="{p["name"]}"><button>削除</button></form></li>' for i, p in enumerate(participants))
-    cand_list = ''.join(f'<li>{name} <form method="post" action="/add" style="display:inline;"><input type="hidden" name="name" value="{name}"><button>追加</button></form></li>' for name in candidates if name not in [p["name"] for p in participants])
+    part_list = ''.join(f'<li>{i+1}. {p["name"]} <form method="post" action="/remove"><input type="hidden" name="name" value="{p["name"]}"><button>削除</button></form></li>' for i, p in enumerate(participants))
+    cand_list = ''.join(f'<li>{name} <form method="post" action="/add"><input type="hidden" name="name" value="{name}"><button>追加</button></form></li>' for name in candidates if name not in [p["name"] for p in participants])
 
     return f'''
     <h1>管理者ページ</h1>
     <form method="post">
-        <input type="text" name="live_url" value="{url}" placeholder="YouTubeライブURLを入力">
+        <input type="text" name="live_url" value="{url}" placeholder="YouTubeライブURL">
         <button>設定</button>
     </form>
     <p>{message}</p>
     <h2>参加者リスト（{len(participants)}人）</h2>
     <ul>{part_list or "<li>なし</li>"}</ul>
-    <h2>候補者リスト（コメントしたけど参加希望してない人）</h2>
+    <h2>候補者リスト</h2>
     <ul>{cand_list or "<li>なし</li>"}</ul>
-    <p><a href="/viewer">▶ 一般画面へ</a></p>
-    <p><a href="/logout">ログアウト</a></p>
+    <a href="/viewer">▶視聴者用ページ</a> / <a href="/logout">ログアウト</a>
     '''
 
 @app.route("/remove", methods=["POST"])
@@ -116,7 +117,7 @@ def viewer():
         const data = await res.json();
         let html = "";
         data.participants.forEach((p, i) => {
-            html += `<li>${i + 1}. ${p.name} (${p.time})</li>`;
+            html += `<li>${i + 1}. ${p.name}</li>`;
         });
         document.getElementById("list").innerHTML = html;
     }
@@ -153,7 +154,20 @@ def get_live_chat_id(video_id):
         print("💥 Chat ID取得エラー:", e)
         return None
 
-def monitor_chat():
+def handle_chat_message(author, msg):
+    msg = msg.lower()
+    if any(k in msg for k in join_keywords):
+        if author not in [p["name"] for p in participants]:
+            participants.append({"name": author, "time": datetime.now().strftime("%H:%M:%S")})
+            print(f"✅ 追加: {author}")
+    elif any(k in msg for k in cancel_keywords):
+        participants[:] = [p for p in participants if p["name"] != author]
+        print(f"❌ 削除: {author}")
+    else:
+        if author not in candidates:
+            candidates[author] = True
+
+def monitor_youtube():
     while True:
         time.sleep(5)
         if not LIVE_CHAT_ID:
@@ -171,24 +185,35 @@ def monitor_chat():
                 if msg_id in processed_msg_ids:
                     continue
                 processed_msg_ids.add(msg_id)
-
                 msg = item["snippet"]["textMessageDetails"]["messageText"]
                 author = item["authorDetails"]["displayName"]
-
-                if any(k in msg for k in join_keywords):
-                    if author not in [p["name"] for p in participants]:
-                        participants.append({"name": author, "time": datetime.now().strftime("%H:%M:%S")})
-                        print(f"✅ 追加: {author}")
-                elif any(k in msg for k in cancel_keywords):
-                    participants[:] = [p for p in participants if p["name"] != author]
-                    print(f"❌ 削除: {author}")
-                else:
-                    if author not in candidates:
-                        candidates[author] = True
+                handle_chat_message(author, msg)
         except Exception as e:
-            print("❗監視エラー:", e)
+            print("❗YouTube監視エラー:", e)
+
+def monitor_twitch():
+    try:
+        s = socket.socket()
+        s.connect(("irc.chat.twitch.tv", 6667))
+        s.send(f"PASS {TWITCH_TOKEN}\r\n".encode("utf-8"))
+        s.send(f"NICK {TWITCH_NICK}\r\n".encode("utf-8"))
+        s.send(f"JOIN {TWITCH_CHANNEL}\r\n".encode("utf-8"))
+
+        while True:
+            resp = s.recv(2048).decode("utf-8")
+            if resp.startswith("PING"):
+                s.send("PONG :tmi.twitch.tv\r\n".encode("utf-8"))
+            elif "PRIVMSG" in resp:
+                name = resp.split("!")[0][1:]
+                msg = resp.split("PRIVMSG")[1].split(":", 1)[1].strip()
+                handle_chat_message(name, msg)
+    except Exception as e:
+        print("❗Twitch監視エラー:", e)
 
 if __name__ == "__main__":
-    threading.Thread(target=monitor_chat, daemon=True).start()
+    if MODE == "youtube":
+        threading.Thread(target=monitor_youtube, daemon=True).start()
+    elif MODE == "twitch":
+        threading.Thread(target=monitor_twitch, daemon=True).start()
     port = int(os.environ.get("PORT", 8000))
     app.run(host="0.0.0.0", port=port)
