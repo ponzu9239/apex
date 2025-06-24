@@ -52,64 +52,113 @@ def logout():
 @app.route("/admin", methods=["GET", "POST"])
 @login_required
 def admin():
-    global LIVE_CHAT_ID
+    global LIVE_CHAT_ID, TWITCH_CHANNEL
     message = ""
-    url = ""
+    current_url = ""
+
     if request.method == "POST":
-        url = request.form.get("live_url", "")
-        video_id = extract_video_id(url)
-        if video_id:
-            chat_id = get_live_chat_id(video_id)
-            if chat_id:
+        mode = request.form.get("mode")
+        url = request.form.get("live_url", "").strip()
+        current_url = url
+
+        if mode == "youtube":
+            video_id = extract_video_id(url)
+            if video_id:
+                live_chat_id = get_live_chat_id(video_id)
+                if live_chat_id:
+                    with lock:
+                        LIVE_CHAT_ID = live_chat_id
+                        TWITCH_CHANNEL = None
+                        participants.clear()
+                        candidates.clear()
+                        processed_msg_ids.clear()
+                    message = f"✅ YouTubeモード開始（Video ID: {video_id}）"
+                else:
+                    message = "❌ ライブチャットIDが取得できません。ライブ中ですか？"
+            else:
+                message = "❌ URLが無効です"
+
+        elif mode == "twitch":
+            channel = extract_twitch_channel(url)
+            if channel:
                 with lock:
-                    LIVE_CHAT_ID = chat_id
+                    TWITCH_CHANNEL = channel
+                    LIVE_CHAT_ID = None
                     participants.clear()
                     candidates.clear()
                     processed_msg_ids.clear()
-                message = f"✅ 設定完了: {chat_id}"
+                message = f"✅ Twitchモード開始（チャンネル: {channel}）"
             else:
-                message = "❌ ライブチャットIDが取得できません。ライブ中ですか？"
-        else:
-            message = "❌ 無効なURLです"
+                message = "❌ TwitchのチャンネルURLが無効です"
 
-    return render_template_string(f'''
-    <h1>管理者ページ</h1>
-    <form method="post">
-        <input type="text" name="live_url" value="{url}" placeholder="YouTubeライブURL">
-        <button>設定</button>
-    </form>
-    <p>{message}</p>
-    <h2>参加者リスト（<span id="count">{len(participants)}</span>人）</h2>
-    <ul id="participants"><li>読み込み中...</li></ul>
-    <h2>候補者リスト</h2>
-    <ul id="candidates"><li>読み込み中...</li></ul>
-    <a href="/viewer">▶視聴者用ページ</a> / <a href="/logout">ログアウト</a>
+    # 参加者と候補のリスト表示
+    part_list = ''.join(
+        f"<li>{i+1}. {p['name']} "
+        f"<form method='post' action='/remove' style='display:inline;'>"
+        f"<input type='hidden' name='name' value=\"{p['name']}\">"
+        f"<button style='margin-left:10px;'>削除</button></form></li>"
+        for i, p in enumerate(participants)
+    )
 
-    <script>
-    async function updateAdminLists() {{
-        const res = await fetch("/api/all_participants");
-        const data = await res.json();
-        const part_ul = document.getElementById("participants");
-        const cand_ul = document.getElementById("candidates");
-        document.getElementById("count").textContent = data.participants.length;
-        part_ul.innerHTML = "";
-        cand_ul.innerHTML = "";
-        data.participants.forEach((p, i) => {{
-            const li = document.createElement("li");
-            li.innerHTML = `${i+1}. ${p.name} <form method='post' action='/remove'><input type='hidden' name='name' value='${p.name}'><button>削除</button></form>`;
-            part_ul.appendChild(li);
-        }});
-        data.candidates.forEach((name) => {{
-            const li = document.createElement("li");
-            li.innerHTML = `${name} <form method='post' action='/add'><input type='hidden' name='name' value='${name}'><button>追加</button></form>`;
-            cand_ul.appendChild(li);
-        }});
-    }}
-    setInterval(updateAdminLists, 5000);
-    updateAdminLists();
-    </script>
-    ''')
+    cand_list = ''.join(
+        f"<li>{name} "
+        f"<form method='post' action='/add' style='display:inline;'>"
+        f"<input type='hidden' name='name' value=\"{name}\">"
+        f"<button style='margin-left:10px;'>追加</button></form></li>"
+        for name in candidates
+        if name not in [p["name"] for p in participants]
+    )
 
+    return render_template_string(f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>管理者ページ</title>
+        <style>
+            body {{
+                font-family: 'Segoe UI', sans-serif;
+                background: #f9f9ff;
+                padding: 2em;
+                color: #333;
+            }}
+            h1 {{ font-size: 1.8em; }}
+            input[type=text] {{ width: 400px; padding: 0.5em; }}
+            button {{ padding: 0.4em 1em; border-radius: 6px; }}
+            ul {{ list-style: none; padding-left: 0; }}
+            li {{ margin: 0.5em 0; }}
+            .section {{ margin-top: 2em; }}
+        </style>
+    </head>
+    <body>
+        <h1>🎮 管理者ページ</h1>
+        <form method="post">
+            <p>配信URL（YouTubeまたはTwitch）:</p>
+            <input type="text" name="live_url" placeholder="https://..." value="{current_url}" required>
+            <br><br>
+            <button name="mode" value="youtube">🎥 YouTubeで開始</button>
+            <button name="mode" value="twitch">🟣 Twitchで開始</button>
+        </form>
+        <p>{message}</p>
+
+        <div class="section">
+            <h2>📋 参加者リスト（{len(participants)}人）</h2>
+            <ul>{part_list or "<li>なし</li>"}</ul>
+        </div>
+
+        <div class="section">
+            <h2>💬 コメントしてるけど参加希望してない人</h2>
+            <ul>{cand_list or "<li>なし</li>"}</ul>
+        </div>
+
+        <div class="section">
+            <a href="/viewer">▶ 一般画面へ</a> /
+            <a href="/logout">🚪 ログアウト</a>
+        </div>
+    </body>
+    </html>
+    """)
+    
 @app.route("/remove", methods=["POST"])
 @login_required
 def remove():
