@@ -58,15 +58,16 @@ def admin():
 
     if request.method == "POST":
         mode = request.form.get("mode")
-        current_url = request.form.get("live_url", "").strip()
+        url = request.form.get("live_url", "").strip()
+        current_url = url
 
         if mode == "youtube":
-            video_id = extract_video_id(current_url)
+            video_id = extract_video_id(url)
             if video_id:
-                chat_id = get_live_chat_id(video_id)
-                if chat_id:
+                live_chat_id = get_live_chat_id(video_id)
+                if live_chat_id:
                     with lock:
-                        LIVE_CHAT_ID = chat_id
+                        LIVE_CHAT_ID = live_chat_id
                         TWITCH_CHANNEL = None
                         participants.clear()
                         candidates.clear()
@@ -78,7 +79,7 @@ def admin():
                 message = "❌ URLが無効です"
 
         elif mode == "twitch":
-            channel = extract_twitch_channel(current_url)
+            channel = extract_twitch_channel(url)
             if channel:
                 with lock:
                     TWITCH_CHANNEL = channel
@@ -90,30 +91,23 @@ def admin():
             else:
                 message = "❌ TwitchのチャンネルURLが無効です"
 
-    # 参加者と候補者をHTMLに変換
-    part_list_html = ""
-    for i, p in enumerate(participants):
-        name = p["name"]
-        part_list_html += f"""
-            <li>{i+1}. {name}
-                <form method='post' action='/remove' style='display:inline;'>
-                    <input type='hidden' name='name' value="{name}">
-                    <button style='margin-left:10px;'>削除</button>
-                </form>
-            </li>
-        """
+    # 参加者と候補のリスト表示
+    part_list = ''.join(
+        f"<li>{i+1}. {p['name']} "
+        f"<form method='post' action='/remove' style='display:inline;'>"
+        f"<input type='hidden' name='name' value=\"{p['name']}\">"
+        f"<button style='margin-left:10px;'>削除</button></form></li>"
+        for i, p in enumerate(participants)
+    )
 
-    cand_list_html = ""
-    for name in candidates:
-        if name not in [p["name"] for p in participants]:
-            cand_list_html += f"""
-                <li>{name}
-                    <form method='post' action='/add' style='display:inline;'>
-                        <input type='hidden' name='name' value="{name}">
-                        <button style='margin-left:10px;'>追加</button>
-                    </form>
-                </li>
-            """
+    cand_list = ''.join(
+        f"<li>{name} "
+        f"<form method='post' action='/add' style='display:inline;'>"
+        f"<input type='hidden' name='name' value=\"{name}\">"
+        f"<button style='margin-left:10px;'>追加</button></form></li>"
+        for name in candidates
+        if name not in [p["name"] for p in participants]
+    )
 
     return render_template_string(f"""
     <!DOCTYPE html>
@@ -124,56 +118,47 @@ def admin():
         <style>
             body {{
                 font-family: 'Segoe UI', sans-serif;
-                background: #f0f8ff;
+                background: #f9f9ff;
                 padding: 2em;
                 color: #333;
             }}
-            input[type=text] {{
-                width: 400px;
-                padding: 0.5em;
-                margin-bottom: 1em;
-            }}
-            button {{
-                padding: 0.4em 1em;
-                border-radius: 6px;
-            }}
-            h2 {{
-                margin-top: 2em;
-            }}
-            ul {{
-                list-style: none;
-                padding: 0;
-            }}
-            li {{
-                margin-bottom: 0.6em;
-            }}
+            h1 {{ font-size: 1.8em; }}
+            input[type=text] {{ width: 400px; padding: 0.5em; }}
+            button {{ padding: 0.4em 1em; border-radius: 6px; }}
+            ul {{ list-style: none; padding-left: 0; }}
+            li {{ margin: 0.5em 0; }}
+            .section {{ margin-top: 2em; }}
         </style>
     </head>
     <body>
         <h1>🎮 管理者ページ</h1>
         <form method="post">
-            <p>配信URL:</p>
+            <p>配信URL（YouTubeまたはTwitch）:</p>
             <input type="text" name="live_url" placeholder="https://..." value="{current_url}" required>
-            <br>
+            <br><br>
             <button name="mode" value="youtube">🎥 YouTubeで開始</button>
             <button name="mode" value="twitch">🟣 Twitchで開始</button>
         </form>
         <p>{message}</p>
 
-        <h2>📋 参加者リスト（{len(participants)}人）</h2>
-        <ul>
-            {part_list_html or "<li>現在参加者はいません</li>"}
-        </ul>
+        <div class="section">
+            <h2>📋 参加者リスト（{len(participants)}人）</h2>
+            <ul>{part_list or "<li>なし</li>"}</ul>
+        </div>
 
-        <h2>💬 コメント済み未参加ユーザー</h2>
-        <ul>
-            {cand_list_html or "<li>未参加者はいません</li>"}
-        </ul>
+        <div class="section">
+            <h2>💬 コメントしてるけど参加希望してない人</h2>
+            <ul>{cand_list or "<li>なし</li>"}</ul>
+        </div>
 
-        <p><a href="/viewer">▶ 一般画面へ</a> / <a href="/logout">🚪 ログアウト</a></p>
+        <div class="section">
+            <a href="/viewer">▶ 一般画面へ</a> /
+            <a href="/logout">🚪 ログアウト</a>
+        </div>
     </body>
     </html>
     """)
+ 
     
 @app.route("/remove", methods=["POST"])
 @login_required
