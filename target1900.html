@@ -4,10 +4,23 @@
 <meta charset="UTF-8">
 <title>ターゲット1900クイズ</title>
 <style>
+  /* --- 基本カラー設定 --- */
+  :root {
+    --primary-bg: #1E3A8A; /* 濃いブルー背景 */
+    --card-bg: #FFFFFF;     /* カード背景 */
+    --button-bg: #3B82F6;   /* ボタンメイン */
+    --button-hover: #2563EB;/* ボタンホバー */
+    --accent: #F59E0B;      /* 次へボタンなどのアクセント */
+    --correct: #10B981;     /* 正解 */
+    --incorrect: #EF4444;   /* 不正解 */
+    --text-main: #1F2937;   /* 文字色 */
+    --text-light: #FFFFFF;  /* 明るい文字 */
+  }
+
   body {
     font-family: 'Segoe UI', sans-serif;
-    background: linear-gradient(to right, #74ebd5, #ACB6E5);
-    color: #333;
+    background: var(--primary-bg);
+    color: var(--text-main);
     text-align: center;
     padding: 50px 20px;
   }
@@ -15,12 +28,12 @@
   h1 {
     font-size: 2.5em;
     margin-bottom: 30px;
-    color: #fff;
+    color: var(--text-light);
     text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
   }
 
   .quiz-box {
-    background: rgba(255, 255, 255, 0.9);
+    background: var(--card-bg);
     border-radius: 15px;
     padding: 30px;
     max-width: 600px;
@@ -34,6 +47,7 @@
     opacity: 0;
     transform: translateY(-20px);
     animation: fadeSlide 0.5s forwards;
+    color: var(--text-main);
   }
 
   @keyframes fadeSlide {
@@ -44,29 +58,27 @@
     display: block;
     width: 80%;
     margin: 12px auto;
-    padding: 12px 0;
+    padding: 12px;
     font-size: 1.1em;
     border: none;
     border-radius: 10px;
-    background: #6C63FF;
-    color: #fff;
+    background: var(--button-bg);
+    color: var(--text-light);
     cursor: pointer;
     transition: all 0.3s ease;
   }
 
   .choice-btn:hover {
-    background: #5048c8;
+    background: var(--button-hover);
     transform: scale(1.05);
   }
 
   .choice-btn.correct {
-    background: #4CAF50 !important;
-    color: #fff;
+    background: var(--correct) !important;
   }
 
   .choice-btn.incorrect {
-    background: #F44336 !important;
-    color: #fff;
+    background: var(--incorrect) !important;
   }
 
   #result {
@@ -81,13 +93,14 @@
     font-size: 1.2em;
     border: none;
     border-radius: 10px;
-    background: #FFB74D;
+    background: var(--accent);
+    color: var(--text-light);
     cursor: pointer;
     transition: all 0.3s ease;
   }
 
   #nextBtn:hover {
-    background: #FFA726;
+    background: #D97706; /* 少し濃いめ */
     transform: scale(1.05);
   }
 
