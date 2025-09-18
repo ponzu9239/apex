@@ -179,7 +179,7 @@
 <body>
 <h1>ターゲット1900 クイズ</h1>
 
-<!-- 自由範囲選択 -->
+<!-- 範囲選択画面 -->
 <div id="rangeSelection">
   <p>範囲を入力してください（例: 1〜500）</p>
   <input type="number" id="startNum" placeholder="開始" min="1" max="1900">
@@ -191,13 +191,10 @@
 <!-- クイズ画面 -->
 <div class="quiz-box" id="quizBox">
   <button id="backBtn" onclick="goBack()">&lt;</button>
-
-  <!-- 残り問題数・タイマー -->
   <div id="status">
     <div id="remaining">残り問題: 0</div>
     <div id="timer">経過時間: 0.0s</div>
   </div>
-
   <p class="question" id="question"></p>
   <div id="choices"></div>
 </div>
@@ -214,7 +211,6 @@ let elapsedTime = 0;
 let timerInterval = null;
 let correctCount = 0;
 
-// JSON読み込み
 fetch("words.json")
   .then(res => res.json())
   .then(data => { words = data; });
@@ -332,6 +328,12 @@ function showResult() {
 function restartQuiz() {
   document.getElementById("quizBox").style.display = "none";
   document.getElementById("rangeSelection").style.display = "block";
+}
+
+function goBack() {
+  document.getElementById("quizBox").style.display = "none";
+  document.getElementById("rangeSelection").style.display = "block";
+  if (timerInterval) clearInterval(timerInterval);
 }
 </script>
 </body>
