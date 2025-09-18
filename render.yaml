@@ -1,6 +1,0 @@
-services:
-  - type: web
-    name: apex-viewer
-    env: python
-    buildCommand: ""
-    startCommand: python apex.py
