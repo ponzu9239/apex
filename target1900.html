@@ -1,80 +1,172 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>ターゲット1900クイズ（ランダム選択肢）</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    .quiz-box { margin: 20px 0; }
-    button { display: block; margin: 10px 0; padding: 10px; font-size: 16px; }
-    #result { font-weight: bold; margin-top: 20px; }
-  </style>
+<meta charset="UTF-8">
+<title>ターゲット1900クイズ</title>
+<style>
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(to right, #74ebd5, #ACB6E5);
+    color: #333;
+    text-align: center;
+    padding: 50px 20px;
+  }
+
+  h1 {
+    font-size: 2.5em;
+    margin-bottom: 30px;
+    color: #fff;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+  }
+
+  .quiz-box {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 15px;
+    padding: 30px;
+    max-width: 600px;
+    margin: auto;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+  }
+
+  .question {
+    font-size: 1.8em;
+    margin-bottom: 25px;
+    opacity: 0;
+    transform: translateY(-20px);
+    animation: fadeSlide 0.5s forwards;
+  }
+
+  @keyframes fadeSlide {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .choice-btn {
+    display: block;
+    width: 80%;
+    margin: 12px auto;
+    padding: 12px 0;
+    font-size: 1.1em;
+    border: none;
+    border-radius: 10px;
+    background: #6C63FF;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .choice-btn:hover {
+    background: #5048c8;
+    transform: scale(1.05);
+  }
+
+  .choice-btn.correct {
+    background: #4CAF50 !important;
+    color: #fff;
+  }
+
+  .choice-btn.incorrect {
+    background: #F44336 !important;
+    color: #fff;
+  }
+
+  #result {
+    font-size: 1.5em;
+    margin-top: 20px;
+    height: 40px;
+  }
+
+  #nextBtn {
+    margin-top: 25px;
+    padding: 12px 25px;
+    font-size: 1.2em;
+    border: none;
+    border-radius: 10px;
+    background: #FFB74D;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  #nextBtn:hover {
+    background: #FFA726;
+    transform: scale(1.05);
+  }
+
+</style>
 </head>
 <body>
-  <h1>ターゲット1900 四択クイズ</h1>
-  <div id="quiz" class="quiz-box"></div>
-  <div id="result"></div>
+<h1>ターゲット1900 四択クイズ</h1>
+
+<div class="quiz-box">
+  <p class="question" id="question"></p>
+  <div id="choices"></div>
+  <p id="result"></p>
   <button id="nextBtn">次の問題</button>
+</div>
 
-  <script>
-    let words = [];
-    let currentQuestion;
+<script>
+let words = [];
+let currentQuestion;
 
-    // JSONファイルを読み込む
-    fetch("words.json")
-      .then(res => res.json())
-      .then(data => {
-        words = data;
-        showQuestion();
-      });
+// JSONファイルを読み込む
+fetch("words.json")
+  .then(res => res.json())
+  .then(data => {
+    words = data;
+    showQuestion();
+  });
 
-    function showQuestion() {
-      document.getElementById("result").textContent = "";
-      const quizBox = document.getElementById("quiz");
-      quizBox.innerHTML = "";
+// 問題を表示
+function showQuestion() {
+  document.getElementById("result").textContent = "";
+  const quizBox = document.getElementById("choices");
+  quizBox.innerHTML = "";
 
-      // ランダムに1問選択
-      currentQuestion = words[Math.floor(Math.random() * words.length)];
+  // ランダムに1問
+  currentQuestion = words[Math.floor(Math.random() * words.length)];
 
-      // 問題文
-      const q = document.createElement("h2");
-      q.textContent = "単語: " + currentQuestion.word;
-      quizBox.appendChild(q);
+  // 問題文
+  const q = document.getElementById("question");
+  q.textContent = `単語: ${currentQuestion.word}`;
+  q.classList.remove("fadeSlide");
+  void q.offsetWidth; // 再アニメーションのためのトリガー
+  q.style.animation = "fadeSlide 0.5s forwards";
 
-      // 選択肢を作成（正解 + ランダムな3つのダミー）
-      const choices = [currentQuestion.meaning];
+  // 選択肢作成（正解 + ランダムな3つ）
+  const choices = [currentQuestion.meaning];
+  while (choices.length < 4) {
+    const randomMeaning = words[Math.floor(Math.random() * words.length)].meaning;
+    if (!choices.includes(randomMeaning)) choices.push(randomMeaning);
+  }
 
-      while (choices.length < 4) {
-        const randomMeaning = words[Math.floor(Math.random() * words.length)].meaning;
-        if (!choices.includes(randomMeaning)) {
-          choices.push(randomMeaning);
-        }
-      }
+  // シャッフル
+  choices.sort(() => Math.random() - 0.5);
 
-      // 選択肢をシャッフル
-      choices.sort(() => Math.random() - 0.5);
+  // ボタン生成
+  choices.forEach(choice => {
+    const btn = document.createElement("button");
+    btn.textContent = choice;
+    btn.className = "choice-btn";
+    btn.onclick = () => checkAnswer(choice, btn);
+    quizBox.appendChild(btn);
+  });
+}
 
-      // 選択肢ボタンを生成
-      choices.forEach(choice => {
-        const btn = document.createElement("button");
-        btn.textContent = choice;
-        btn.onclick = () => checkAnswer(choice);
-        quizBox.appendChild(btn);
-      });
-    }
+// 答えチェック
+function checkAnswer(choice, btn) {
+  const result = document.getElementById("result");
+  const buttons = document.querySelectorAll(".choice-btn");
+  buttons.forEach(b => b.disabled = true);
 
-    function checkAnswer(choice) {
-      const result = document.getElementById("result");
-      if (choice === currentQuestion.meaning) {
-        result.textContent = "✅ 正解！";
-        result.style.color = "green";
-      } else {
-        result.textContent = "❌ 不正解。正解は「" + currentQuestion.meaning + "」";
-        result.style.color = "red";
-      }
-    }
+  if (choice === currentQuestion.meaning) {
+    btn.classList.add("correct");
+    result.textContent = "✅ 正解！";
+  } else {
+    btn.classList.add("incorrect");
+    result.textContent = `❌ 不正解。正解は「${currentQuestion.meaning}」`;
+  }
+}
 
-    document.getElementById("nextBtn").onclick = showQuestion;
-  </script>
+document.getElementById("nextBtn").onclick = showQuestion;
+</script>
 </body>
 </html>
