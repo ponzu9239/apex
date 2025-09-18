@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>ターゲット1900クイズ（ランダム選択肢）</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .quiz-box { margin: 20px 0; }
+    button { display: block; margin: 10px 0; padding: 10px; font-size: 16px; }
+    #result { font-weight: bold; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>ターゲット1900 四択クイズ</h1>
+  <div id="quiz" class="quiz-box"></div>
+  <div id="result"></div>
+  <button id="nextBtn">次の問題</button>
+
+  <script>
+    let words = [];
+    let currentQuestion;
+
+    // JSONファイルを読み込む
+    fetch("words.json")
+      .then(res => res.json())
+      .then(data => {
+        words = data;
+        showQuestion();
+      });
+
+    function showQuestion() {
+      document.getElementById("result").textContent = "";
+      const quizBox = document.getElementById("quiz");
+      quizBox.innerHTML = "";
+
+      // ランダムに1問選択
+      currentQuestion = words[Math.floor(Math.random() * words.length)];
+
+      // 問題文
+      const q = document.createElement("h2");
+      q.textContent = "単語: " + currentQuestion.word;
+      quizBox.appendChild(q);
+
+      // 選択肢を作成（正解 + ランダムな3つのダミー）
+      const choices = [currentQuestion.meaning];
+
+      while (choices.length < 4) {
+        const randomMeaning = words[Math.floor(Math.random() * words.length)].meaning;
+        if (!choices.includes(randomMeaning)) {
+          choices.push(randomMeaning);
+        }
+      }
+
+      // 選択肢をシャッフル
+      choices.sort(() => Math.random() - 0.5);
+
+      // 選択肢ボタンを生成
+      choices.forEach(choice => {
+        const btn = document.createElement("button");
+        btn.textContent = choice;
+        btn.onclick = () => checkAnswer(choice);
+        quizBox.appendChild(btn);
+      });
+    }
+
+    function checkAnswer(choice) {
+      const result = document.getElementById("result");
+      if (choice === currentQuestion.meaning) {
+        result.textContent = "✅ 正解！";
+        result.style.color = "green";
+      } else {
+        result.textContent = "❌ 不正解。正解は「" + currentQuestion.meaning + "」";
+        result.style.color = "red";
+      }
+    }
+
+    document.getElementById("nextBtn").onclick = showQuestion;
+  </script>
+</body>
+</html>
