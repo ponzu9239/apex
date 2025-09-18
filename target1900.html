@@ -118,13 +118,15 @@
 
   /* 残り問題数・タイマー */
   #status {
+    position: absolute;
+    top: 25px;
+    left: 80px;
     text-align: left;
-    margin-bottom: 20px;
     color: #1F2937;
     font-weight: bold;
   }
-  #remaining, #timer {
-    font-size: 1.2em;
+  #remaining, #timer, #countdown {
+    font-size: 1em;
   }
 
   /* ○×オーバーレイ */
@@ -194,6 +196,7 @@
   <div id="status">
     <div id="remaining">残り問題: 0</div>
     <div id="timer">経過時間: 0.0s</div>
+    <div id="countdown"></div>
   </div>
   <p class="question" id="question"></p>
   <div id="choices"></div>
@@ -210,6 +213,7 @@ let quizQueue = [];
 let elapsedTime = 0;
 let timerInterval = null;
 let correctCount = 0;
+let countdownInterval = null;
 
 fetch("words.json")
   .then(res => res.json())
@@ -227,21 +231,41 @@ function startQuiz() {
   filteredWords = words.slice(start-1, end);
   quizQueue = shuffleArray([...filteredWords]);
   correctCount = 0;
+  elapsedTime = 0;
 
   document.getElementById("rangeSelection").style.display = "none";
   document.getElementById("quizBox").style.display = "block";
   document.getElementById("quizBox").classList.remove("result");
 
-  elapsedTime = 0;
   document.getElementById("timer").textContent = "経過時間: 0.0s";
+  document.getElementById("remaining").textContent = "残り問題: " + quizQueue.length;
+  document.getElementById("countdown").textContent = "3";
 
+  // カウントダウン
+  let count = 3;
+  countdownInterval = setInterval(() => {
+    count--;
+    if (count > 0) {
+      document.getElementById("countdown").textContent = count;
+    } else {
+      clearInterval(countdownInterval);
+      document.getElementById("countdown").textContent = "";
+      startTimer();
+      showQuestion();
+    }
+  }, 1000);
+}
+
+function startTimer() {
   if (timerInterval) clearInterval(timerInterval);
   timerInterval = setInterval(() => {
     elapsedTime += 0.1;
     document.getElementById("timer").textContent = "経過時間: " + elapsedTime.toFixed(1) + "s";
   }, 100);
+}
 
-  showQuestion();
+function stopTimer() {
+  if (timerInterval) clearInterval(timerInterval);
 }
 
 function shuffleArray(array) {
@@ -288,6 +312,7 @@ function showQuestion() {
 }
 
 function handleAnswer(choice) {
+  stopTimer();
   const overlay = document.getElementById("overlay");
   const isCorrect = choice === currentQuestion.meaning;
 
@@ -300,12 +325,13 @@ function handleAnswer(choice) {
 
   setTimeout(() => {
     overlay.className = "";
+    startTimer();
     showQuestion();
   }, 700);
 }
 
 function showResult() {
-  clearInterval(timerInterval);
+  stopTimer();
 
   const totalQuestions = filteredWords.length;
   const incorrectCount = totalQuestions - correctCount;
@@ -333,7 +359,8 @@ function restartQuiz() {
 function goBack() {
   document.getElementById("quizBox").style.display = "none";
   document.getElementById("rangeSelection").style.display = "block";
-  if (timerInterval) clearInterval(timerInterval);
+  stopTimer();
+  if (countdownInterval) clearInterval(countdownInterval);
 }
 </script>
 </body>
