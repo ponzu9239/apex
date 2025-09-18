@@ -198,6 +198,7 @@ button:hover { background: var(--button-hover); transform: scale(1.05); }
 </div>
 
 <div class="quiz-box" id="quizBox">
+  <button id="backBtn" onclick="goBack()">&lt;</button>
   <div id="status">
     <div id="remaining">残り問題: 0</div>
     <div id="timer">経過時間: 0.0s</div>
@@ -219,6 +220,7 @@ let timerInterval = null;
 let correctCount = 0;
 let countdownInterval = null;
 
+// words.json を読み込む
 fetch("words.json").then(res => res.json()).then(data => words = data);
 
 function startQuiz() {
@@ -241,19 +243,13 @@ function startQuiz() {
   correctCount = 0;
   elapsedTime = 0;
 
+  document.getElementById("rangeSelection").style.display = "none";
   const quizBox = document.getElementById("quizBox");
   quizBox.style.display = "block";
   quizBox.classList.remove("result");
-  quizBox.innerHTML = `
-    <button id="backBtn" onclick="goBack()">&lt;</button>
-    <div id="status">
-      <div id="remaining">残り問題: ${quizQueue.length}</div>
-      <div id="timer">経過時間: 0.0s</div>
-    </div>
-    <p class="question" id="question"></p>
-    <div id="choices"></div>
-  `;
-  document.getElementById("rangeSelection").style.display = "none";
+
+  document.getElementById("timer").textContent = "経過時間: 0.0s";
+  document.getElementById("remaining").textContent = "残り問題: " + quizQueue.length;
 
   startCountdown();
 }
@@ -309,4 +305,13 @@ function showQuestion() {
   currentQuestion = quizQueue.shift();
   document.getElementById("remaining").textContent = "残り問題: " + (quizQueue.length + 1);
 
-  const
+  const q = document.getElementById("question");
+  q.textContent = `単語: ${currentQuestion.word}`;
+  q.style.opacity = 0;
+  q.style.transform = "translateY(-20px)";
+  q.offsetWidth;
+  q.style.animation = "fadeSlide 0.5s forwards";
+
+  const choices = [currentQuestion.meaning];
+  while (choices.length < 4) {
+    const randomMeaning = filteredWords
