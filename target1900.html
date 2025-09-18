@@ -122,7 +122,6 @@
 
   <h1>ターゲット1900 — 4択クイズ（ランキング & 対戦）</h1>
 
-  <!-- 名前入力 -->
   <div id="nameBox" class="card">
     <h3>1) プレイヤー名を入力してください</h3>
     <div class="inline">
@@ -131,7 +130,6 @@
     </div>
   </div>
 
-  <!-- 範囲選択 -->
   <div id="rangeSelection" class="card">
     <h3>2) 範囲と出題数を選択</h3>
     <div class="inline">
@@ -151,7 +149,6 @@
     </div>
   </div>
 
-  <!-- quiz -->
   <div id="quizBox" class="card" style="display:none">
     <div class="status">
       <div id="remaining">残り: 0</div>
@@ -163,7 +160,6 @@
     <div id="choices"></div>
   </div>
 
-  <!-- result -->
   <div id="resultBox" class="card" style="display:none">
     <h2>結果</h2>
     <div id="resultDetails"></div>
@@ -202,10 +198,13 @@ const db = getFirestore(app);
 /* =======================
    データ & 状態
 ======================= */
-let WORDS = []; // fetch words.json
+let WORDS = [];
 fetch('words.json').then(r=>r.json()).then(data=>{ WORDS = data; }).catch(e=>console.error(e));
 
-let playerName="", filteredWords=[], quizQueue=[], currentQuestion=null, elapsedTime=0, timerInterval=null, correctCount=0, questionsTotal=0;
+let playerName="", filteredWords=[], quizQueue=[], currentQuestion=null, elapsedTime=0, timerInterval=null, correctCount=0, questionsTotal=0, battleRoomId = null;
+let isBattleMode = false;
+let battlePlayers = [];
+let unsubscribeBattle = null;
 
 const nameBox = document.getElementById('nameBox');
 const rangeSelection = document.getElementById('rangeSelection');
@@ -213,11 +212,14 @@ const quizBox = document.getElementById('quizBox');
 const resultBox = document.getElementById('resultBox');
 const overlay = document.getElementById('overlay');
 const countdownBig = document.getElementById('countdownBig');
+const battleBox = document.getElementById('battleBox');
 
 const playerNameInput = document.getElementById('playerNameInput');
 const btnSaveName = document.getElementById('btnSaveName');
 const btnSingle = document.getElementById('btnSingle');
-const btnStart = document.getElementById('btnStart');
+const btnCreateBattle = document.getElementById('btnCreateBattle');
+const btnJoinBattle = document.getElementById('btnJoinBattle');
+const battleRoomIdInput = document.getElementById('battleRoomId');
 const btnRetry = document.getElementById('btnRetry');
 const btnBackToRange = document.getElementById('btnBackToRange');
 
@@ -234,59 +236,367 @@ const countdownSmall = document.getElementById('countdownSmall');
 const rankingDiv = document.getElementById('ranking');
 const battleRankingDiv = document.getElementById('battleRanking');
 
-btnSaveName.addEventListener('click', ()=>{ if(!playerNameInput.value.trim()){alert('名前を入力してください'); return;} playerName=playerNameInput.value.trim(); nameBox.style.display='none'; rangeSelection.style.display='block'; });
-btnSingle.addEventListener('click', ()=>{ onStartClick(); });
-btnRetry.addEventListener('click', ()=>{ resultBox.style.display='none'; rangeSelection.style.display='block'; });
-btnBackToRange.addEventListener('click', ()=>{ resultBox.style.display='none'; rangeSelection.style.display='block'; });
+btnSaveName.addEventListener('click', ()=>{ 
+  if(!playerNameInput.value.trim()){alert('名前を入力してください'); return;} 
+  playerName=playerNameInput.value.trim(); 
+  nameBox.style.display='none'; 
+  rangeSelection.style.display='block'; 
+});
+
+btnSingle.addEventListener('click', ()=>{ 
+  isBattleMode = false;
+  onStartClick(); 
+});
+
+btnCreateBattle.addEventListener('click', async () => {
+  isBattleMode = true;
+  await createBattleRoom();
+});
+
+btnJoinBattle.addEventListener('click', async () => {
+  isBattleMode = true;
+  battleRoomId = battleRoomIdInput.value.trim();
+  if (!battleRoomId) {
+    alert('ルームIDを入力してください');
+    return;
+  }
+  await joinBattleRoom(battleRoomId);
+});
+
+btnRetry.addEventListener('click', ()=>{ 
+  if (isBattleMode) {
+    endBattle();
+  }
+  resultBox.style.display='none'; 
+  rangeSelection.style.display='block'; 
+});
+btnBackToRange.addEventListener('click', ()=>{ 
+  if (isBattleMode) {
+    endBattle();
+  }
+  resultBox.style.display='none'; 
+  rangeSelection.style.display='block'; 
+});
 
 nameBox.style.display='block';
 
 /* --- 開始処理 --- */
 function onStartClick(){
-  const start = parseInt(startNumEl.value); const end = parseInt(endNumEl.value); const numQ=parseInt(numQuestionsEl.value);
-  if(isNaN(start)||isNaN(end)||isNaN(numQ)||start<1||end>WORDS.length||start>end||numQ<1){ alert('正しい範囲/問題数を入力'); return; }
-  const rangeArr = WORDS.slice(start-1,end); const take=Math.min(numQ,rangeArr.length);
-  filteredWords = shuffleArray(rangeArr).slice(0,take); quizQueue = shuffleArray([...filteredWords]);
-  questionsTotal=take; correctCount=0; elapsedTime=0;
-  rangeSelection.style.display='none'; quizBox.style.display='block'; remainingEl.textContent=`残り: ${quizQueue.length}`; timerEl.textContent=`経過: 0.0s`;
-  showBigCountdown(3, ()=>{ startTimer(); showQuestion(); });
+  const start = parseInt(startNumEl.value); 
+  const end = parseInt(endNumEl.value); 
+  const numQ = parseInt(numQuestionsEl.value);
+  if(isNaN(start)||isNaN(end)||isNaN(numQ)||start<1||end>WORDS.length||start>end||numQ<1){ 
+    alert('正しい範囲/問題数を入力してください'); 
+    return; 
+  }
+  const rangeArr = WORDS.slice(start-1,end); 
+  const take = Math.min(numQ,rangeArr.length);
+  filteredWords = shuffleArray(rangeArr).slice(0,take); 
+  quizQueue = shuffleArray([...filteredWords]);
+  questionsTotal=take; 
+  correctCount=0; 
+  elapsedTime=0;
+  
+  // UIの切り替え
+  rangeSelection.style.display='none'; 
+  quizBox.style.display='block'; 
+  remainingEl.textContent=`残り: ${quizQueue.length}`; 
+  timerEl.textContent=`経過: 0.0s`;
+  
+  if (!isBattleMode) {
+    showBigCountdown(3, ()=>{ startTimer(); showQuestion(); });
+  } else {
+    // 対戦モードの場合は、全員が準備完了するまで待機
+    // この部分はFirebaseのロジックに依存
+  }
 }
 
 /* --- タイマー & カウントダウン --- */
-function startTimer(){ if(timerInterval) clearInterval(timerInterval); timerInterval=setInterval(()=>{elapsedTime+=0.1; timerEl.textContent=`経過: ${elapsedTime.toFixed(1)}s`;},100);}
-function stopTimer(){ if(timerInterval){ clearInterval(timerInterval); timerInterval=null;} }
-function showBigCountdown(seconds,onFinish){ countdownBig.style.display='block'; let t=seconds; countdownBig.textContent=t; countdownBig.classList.remove('small'); const id=setInterval(()=>{t--; if(t>0){countdownBig.textContent=t;}else{clearInterval(id); countdownBig.style.fontSize='3rem'; countdownBig.classList.add('small'); countdownBig.textContent='スタート！'; setTimeout(()=>{countdownBig.style.display='none'; countdownBig.style.fontSize=''; onFinish&&onFinish(); },700);}},1000);}
+function startTimer(){ 
+  if(timerInterval) clearInterval(timerInterval); 
+  timerInterval = setInterval(()=>{
+    elapsedTime+=0.1; 
+    timerEl.textContent=`経過: ${elapsedTime.toFixed(1)}s`;
+  },100);
+}
+function stopTimer(){ 
+  if(timerInterval){ 
+    clearInterval(timerInterval); 
+    timerInterval = null;
+  } 
+}
+function showBigCountdown(seconds,onFinish){ 
+  countdownBig.style.display='block'; 
+  let t=seconds; 
+  countdownBig.textContent=t; 
+  countdownBig.classList.remove('small'); 
+  
+  const id = setInterval(()=>{
+    t--; 
+    if(t>0){
+      countdownBig.textContent=t;
+    } else {
+      clearInterval(id); 
+      countdownBig.style.fontSize='3rem'; 
+      countdownBig.classList.add('small'); 
+      countdownBig.textContent='スタート！'; 
+      setTimeout(()=>{
+        countdownBig.style.display='none'; 
+        countdownBig.style.fontSize=''; 
+        onFinish && onFinish(); 
+      },700);
+    }
+  },1000);
+}
 
 /* --- 問題表示 --- */
 function showQuestion(){
-  if(quizQueue.length===0){ showResultUI(); return;}
-  choicesEl.innerHTML=''; currentQuestion=quizQueue.shift();
-  remainingEl.textContent=`残り: ${quizQueue.length+1}`;
+  if(quizQueue.length === 0){ 
+    showResultUI(); 
+    return;
+  }
+  choicesEl.innerHTML=''; 
+  currentQuestion = quizQueue.shift();
+  remainingEl.textContent=`残り: ${quizQueue.length}`;
   questionEl.textContent=`単語: ${currentQuestion.word}`;
-  const choices=[currentQuestion.meaning]; const pool=filteredWords.length>=4?filteredWords:WORDS;
-  while(choices.length<4){ const rnd=pool[Math.floor(Math.random()*pool.length)].meaning; if(!choices.includes(rnd)) choices.push(rnd);}
+  
+  const choices = [currentQuestion.meaning]; 
+  const pool = filteredWords.length >= 4 ? filteredWords : WORDS;
+  
+  while(choices.length < 4){ 
+    const rnd = pool[Math.floor(Math.random()*pool.length)].meaning; 
+    if(!choices.includes(rnd)) {
+      choices.push(rnd);
+    }
+  }
   shuffleArray(choices);
-  choices.forEach(text=>{const btn=document.createElement('button'); btn.className='choice-btn'; btn.textContent=text; btn.onclick=()=>onChoiceClick(btn,text); choicesEl.appendChild(btn); });
+  
+  choices.forEach(text=>{
+    const btn = document.createElement('button'); 
+    btn.className='choice-btn'; 
+    btn.textContent = text; 
+    btn.onclick = () => onChoiceClick(btn,text); 
+    choicesEl.appendChild(btn); 
+  });
 }
 
 /* --- 回答 --- */
-function onChoiceClick(button,text){ stopTimer(); if(text===currentQuestion.meaning) correctCount++; overlay.textContent=(text===currentQuestion.meaning)?'○':'×'; overlay.className=(text===currentQuestion.meaning)?'ok show':'ng show'; document.querySelectorAll('.choice-btn').forEach(b=>b.disabled=true); setTimeout(()=>{ overlay.className=''; startTimer(); showQuestion(); },700);}
+function onChoiceClick(button,text){ 
+  stopTimer(); 
+  const isCorrect = (text === currentQuestion.meaning);
+  if (isCorrect) {
+    correctCount++;
+  }
+  
+  // ○× 表示
+  overlay.textContent = isCorrect ? '○' : '×'; 
+  overlay.className = isCorrect ? 'ok show' : 'ng show'; 
+  
+  // ボタンを無効化
+  document.querySelectorAll('.choice-btn').forEach(b=>b.disabled=true); 
+  
+  setTimeout(()=>{ 
+    overlay.className = ''; 
+    startTimer(); 
+    showQuestion(); 
+  },700);
+}
 
 /* --- 結果表示 --- */
-async function showResultUI(){ stopTimer(); quizBox.style.display='none'; resultBox.style.display='block';
-  const totalQuestions=questionsTotal; const incorrectCount=totalQuestions-correctCount; const penalty=incorrectCount*5; const totalTime=elapsedTime+penalty; const correctRate=((correctCount/totalQuestions)*100).toFixed(1);
-  const det=document.getElementById('resultDetails');
-  det.innerHTML=`<p>名前: ${escapeHtml(playerName)}</p>
+async function showResultUI(){ 
+  stopTimer(); 
+  quizBox.style.display='none'; 
+  resultBox.style.display='block';
+  
+  const totalQuestions = questionsTotal; 
+  const incorrectCount = totalQuestions - correctCount; 
+  const penalty = incorrectCount * 5; 
+  const totalTime = elapsedTime + penalty; 
+  const correctRate = ((correctCount / totalQuestions) * 100).toFixed(1);
+  
+  const det = document.getElementById('resultDetails');
+  det.innerHTML = `<p>名前: ${escapeHtml(playerName)}</p>
 <p>正答率: ${correctRate}% (${correctCount}/${totalQuestions})</p>
 <p>経過時間: ${elapsedTime.toFixed(1)} 秒</p>
 <p>ペナルティ: ${penalty} 秒 (不正解 ${incorrectCount}問 ×5秒)</p>
 <p><strong>合計時間: ${totalTime.toFixed(1)} 秒</strong></p>`;
-  try{ await addDoc(collection(db,'rankings'),{name:playerName,time:Number(totalTime.toFixed(1)),correctCount,totalQuestions,createdAt:serverTimestamp()}); }catch(e){console.warn(e);}
-  await showRanking();
+  
+  try { 
+    if (!isBattleMode) {
+      // シングルプレイの場合のみランキングに保存
+      await addDoc(collection(db, 'rankings'), {
+        name: playerName, 
+        time: Number(totalTime.toFixed(1)), 
+        correctCount, 
+        totalQuestions, 
+        createdAt: serverTimestamp()
+      });
+      await showRanking();
+    } else {
+      // 対戦モードの場合、結果をFirestoreに更新
+      const playerRef = doc(db, 'battles', battleRoomId, 'players', localStorage.getItem('playerId'));
+      await updateDoc(playerRef, {
+        time: Number(totalTime.toFixed(1)),
+        correctCount,
+        incorrectCount
+      });
+      await showBattleRanking();
+    }
+  } catch(e) {
+    console.warn("Firestore save failed:", e);
+  }
 }
 
-async function showRanking(){ rankingDiv.style.display='block'; rankingDiv.innerHTML='<h3>ランキング（総合・上位10）</h3><div id="rankingList">取得中…</div>'; try{ const q=query(collection(db,'rankings'),orderBy('time','asc'),limit(10)); const snap=await getDocs(q); const list=[...snap.docs].map(d=>({id:d.id,...d.data()})); const html=list.map((r,i)=>`<div style="padding:6px 0;border-bottom:1px solid #eef2ff">${i+1}. <strong>${escapeHtml(r.name)}</strong> — ${Number(r.time).toFixed(1)}s</div>`).join(''); document.getElementById('rankingList').innerHTML=html||'<div>まだ記録がありません</div>'; }catch(e){ document.getElementById('rankingList').innerHTML='<div>取得失敗</div>'; console.warn(e);}
+async function showRanking(){ 
+  rankingDiv.style.display='block'; 
+  rankingDiv.innerHTML = '<h3>ランキング（総合・上位10）</h3><div id="rankingList">取得中…</div>'; 
+  try{ 
+    const q = query(collection(db,'rankings'), orderBy('time','asc'), limit(10)); 
+    const snap = await getDocs(q); 
+    const list = snap.docs.map(d=>({id:d.id,...d.data()})); 
+    const html = list.map((r,i)=>`<div style="padding:6px 0;border-bottom:1px solid #eef2ff">${i+1}. <strong>${escapeHtml(r.name)}</strong> — ${Number(r.time).toFixed(1)}s</div>`).join(''); 
+    document.getElementById('rankingList').innerHTML = html || '<div>まだ記録がありません</div>'; 
+  }catch(e){ 
+    document.getElementById('rankingList').innerHTML = '<div>取得失敗</div>'; 
+    console.warn(e);
+  }
+}
 
+/* --- 対戦モード関連 --- */
+async function createBattleRoom() {
+  const start = parseInt(startNumEl.value); 
+  const end = parseInt(endNumEl.value); 
+  const numQ = parseInt(numQuestionsEl.value);
+  if(isNaN(start)||isNaN(end)||isNaN(numQ)||start<1||end>WORDS.length||start>end||numQ<1){ 
+    alert('正しい範囲/問題数を入力してください'); 
+    return; 
+  }
+  const rangeArr = WORDS.slice(start-1,end); 
+  const take = Math.min(numQ,rangeArr.length);
+  const questions = shuffleArray(rangeArr).slice(0,take).map(q => ({word: q.word, meaning: q.meaning}));
+
+  try {
+    const docRef = await addDoc(collection(db, 'battles'), {
+      status: 'waiting',
+      questions: questions,
+      createdAt: serverTimestamp(),
+      playersReady: 0,
+      totalPlayers: 1,
+    });
+    battleRoomId = docRef.id;
+    const playerRef = await addDoc(collection(db, 'battles', battleRoomId, 'players'), {
+      name: playerName,
+      status: 'waiting',
+      time: null,
+      correctCount: null,
+      incorrectCount: null,
+    });
+    localStorage.setItem('playerId', playerRef.id);
+    alert(`ルームを作成しました！\nルームID: ${battleRoomId}\nこのIDを友達に教えてください`);
+    startBattleListener();
+  } catch (e) {
+    console.error("Error creating battle room: ", e);
+    alert('ルーム作成に失敗しました。');
+  }
+}
+
+async function joinBattleRoom(id) {
+  try {
+    const battleRef = doc(db, 'battles', id);
+    const battleSnap = await getDoc(battleRef);
+    if (!battleSnap.exists()) {
+      alert('存在しないルームIDです。');
+      return;
+    }
+    const playerRef = await addDoc(collection(db, 'battles', id, 'players'), {
+      name: playerName,
+      status: 'waiting',
+      time: null,
+      correctCount: null,
+      incorrectCount: null,
+    });
+    localStorage.setItem('playerId', playerRef.id);
+    await updateDoc(battleRef, { totalPlayers: battleSnap.data().totalPlayers + 1 });
+    battleRoomId = id;
+    alert('ルームに参加しました！');
+    startBattleListener();
+  } catch (e) {
+    console.error("Error joining battle room: ", e);
+    alert('ルーム参加に失敗しました。');
+  }
+}
+
+function startBattleListener() {
+  const battleRef = doc(db, 'battles', battleRoomId);
+  unsubscribeBattle = onSnapshot(battleRef, (docSnap) => {
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      if (data.status === 'in-progress') {
+        const questions = data.questions;
+        filteredWords = questions;
+        quizQueue = [...questions];
+        questionsTotal = questions.length;
+        correctCount = 0;
+        elapsedTime = 0;
+        rangeSelection.style.display = 'none';
+        quizBox.style.display = 'block';
+        showBigCountdown(3, () => {
+          startTimer();
+          showQuestion();
+        });
+      } else if (data.status === 'completed') {
+        showBattleRanking();
+      }
+    }
+  });
+
+  // プレイヤーリストの監視
+  onSnapshot(collection(db, 'battles', battleRoomId, 'players'), (snap) => {
+    battlePlayers = snap.docs.map(d => ({id: d.id, ...d.data()}));
+    // ロビー画面などでプレイヤーリストを表示するUIがあれば、ここで更新
+  });
+}
+
+async function showBattleRanking() {
+  stopTimer();
+  const battleRef = doc(db, 'battles', battleRoomId);
+  const playersSnap = await getDocs(collection(db, 'battles', battleRoomId, 'players'));
+  const players = playersSnap.docs.map(d => ({...d.data(), id: d.id})).sort((a,b) => a.time - b.time);
+  
+  resultBox.style.display = 'block';
+  rankingDiv.style.display = 'none';
+  battleRankingDiv.style.display = 'block';
+  battleRankingDiv.innerHTML = `<h3>対戦結果（ルームID: ${battleRoomId}）</h3><div id="battleRankingList"></div>`;
+  const listEl = document.getElementById('battleRankingList');
+  if (players.every(p => p.time !== null)) {
+    const html = players.map((p, i) => {
+      const isMe = p.id === localStorage.getItem('playerId');
+      return `<div style="padding:6px 0;border-bottom:1px solid #eef2ff;${isMe ? 'font-weight:bold;' : ''}">
+                ${i+1}. ${escapeHtml(p.name)} — ${p.time ? p.time.toFixed(1) + 's' : '未完了'}
+              </div>`;
+    }).join('');
+    listEl.innerHTML = html;
+  } else {
+    listEl.innerHTML = '全員が完了するまでお待ちください...';
+    // 全員完了したら status を 'completed' に更新
+    const allDone = players.every(p => p.time !== null);
+    if(allDone){
+      await updateDoc(battleRef, {status: 'completed'});
+    }
+  }
+}
+
+function endBattle() {
+  if (unsubscribeBattle) {
+    unsubscribeBattle();
+  }
+  battleRoomId = null;
+  isBattleMode = false;
+  localStorage.removeItem('playerId');
+  battleRankingDiv.style.display = 'none';
+}
+
+/* --- ユーティリティ関数 --- */
 function escapeHtml(str){ return String(str).replace(/[&<>"']/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
 function shuffleArray(arr){ for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]];} return arr;}
 </script>
