@@ -372,3 +372,22 @@ function showResult() {
     <p>ペナルティ: ${penaltyTime} 秒 (不正解 ${incorrectCount} 問 ×5秒)</p>
     <p>合計時間: ${totalTime.toFixed(1)} 秒</p>
     <button onclick="restartQuiz()">もう一度挑戦</button>
+  `;
+  quizBox.classList.add("result");
+}
+
+function restartQuiz() {
+  document.getElementById("quizBox").style.display = "none";
+  document.getElementById("rangeSelection").style.display = "block";
+}
+
+function goBack() {
+  document.getElementById("quizBox").style.display = "none";
+  document.getElementById("rangeSelection").style.display = "block";
+  stopTimer();
+  if (countdownInterval) clearInterval(countdownInterval);
+  document.getElementById("countdown").style.display = "none";
+}
+</script>
+</body>
+</html>
