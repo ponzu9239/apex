@@ -1,4 +1,4 @@
-　<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -125,22 +125,8 @@
     color: #1F2937;
     font-weight: bold;
   }
-  #remaining, #timer {
+  #remaining, #timer, #countdown {
     font-size: 1em;
-  }
-
-  /* カウントダウン表示 */
-  #countdown {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 8em;
-    font-weight: bold;
-    color: #FFFFFF;
-    text-shadow: 2px 2px 6px rgba(0,0,0,0.5);
-    z-index: 1001;
-    display: none;
   }
 
   /* ○×オーバーレイ */
@@ -210,13 +196,11 @@
   <div id="status">
     <div id="remaining">残り問題: 0</div>
     <div id="timer">経過時間: 0.0s</div>
+    <div id="countdown"></div>
   </div>
   <p class="question" id="question"></p>
   <div id="choices"></div>
 </div>
-
-<!-- カウントダウン表示 -->
-<div id="countdown"></div>
 
 <!-- ○×オーバーレイ -->
 <div id="overlay"></div>
@@ -255,29 +239,19 @@ function startQuiz() {
 
   document.getElementById("timer").textContent = "経過時間: 0.0s";
   document.getElementById("remaining").textContent = "残り問題: " + quizQueue.length;
+  document.getElementById("countdown").textContent = "3";
 
-  startCountdown();
-}
-
-function startCountdown() {
-  const countdownEl = document.getElementById("countdown");
-  countdownEl.style.display = "block";
+  // カウントダウン
   let count = 3;
-
-  countdownEl.textContent = count;
-
   countdownInterval = setInterval(() => {
     count--;
     if (count > 0) {
-      countdownEl.textContent = count;
+      document.getElementById("countdown").textContent = count;
     } else {
       clearInterval(countdownInterval);
-      countdownEl.textContent = "スタート！";
-      setTimeout(() => {
-        countdownEl.style.display = "none";
-        startTimer();
-        showQuestion();
-      }, 800);
+      document.getElementById("countdown").textContent = "";
+      startTimer();
+      showQuestion();
     }
   }, 1000);
 }
@@ -383,4 +357,11 @@ function restartQuiz() {
 }
 
 function goBack() {
-  document.getElementBy
+  document.getElementById("quizBox").style.display = "none";
+  document.getElementById("rangeSelection").style.display = "block";
+  stopTimer();
+  if (countdownInterval) clearInterval(countdownInterval);
+}
+</script>
+</body>
+</html>
