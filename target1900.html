@@ -116,6 +116,17 @@
   }
   #backBtn:hover { background: rgba(37,99,235,0.9); transform: scale(1.2); }
 
+  /* 残り問題数・タイマー */
+  #status {
+    text-align: left;
+    margin-bottom: 20px;
+    color: #1F2937;
+    font-weight: bold;
+  }
+  #remaining, #timer {
+    font-size: 1.2em;
+  }
+
   /* ○×オーバーレイ */
   #overlay {
     position: fixed;
@@ -129,7 +140,6 @@
   #overlay.correct { color: var(--correct-color); }
   #overlay.incorrect { color: var(--incorrect-color); }
 
-  /* showクラスで表示アニメーション */
   #overlay.show {
     opacity: 1;
     pointer-events: auto;
@@ -140,6 +150,29 @@
     0% { transform: scale(0.5); opacity:0; }
     50% { transform: scale(1.3); opacity:1; }
     100% { transform: scale(1); opacity:1; }
+  }
+
+  /* 結果画面 */
+  #quizBox.result {
+    text-align: center;
+    background: var(--card-bg);
+    color: #1F2937;
+    border-radius: 20px;
+    padding: 40px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+  }
+  #quizBox.result h2 {
+    font-size: 2.5em;
+    margin-bottom: 20px;
+  }
+  #quizBox.result p {
+    font-size: 1.5em;
+    margin: 10px 0;
+  }
+  #quizBox.result button {
+    margin-top: 30px;
+    font-size: 1.3em;
+    padding: 15px 30px;
   }
 </style>
 </head>
@@ -157,8 +190,13 @@
 
 <!-- クイズ画面 -->
 <div class="quiz-box" id="quizBox">
-  <!-- 左上戻るボタン -->
   <button id="backBtn" onclick="goBack()">&lt;</button>
+
+  <!-- 残り問題数・タイマー -->
+  <div id="status">
+    <div id="remaining">残り問題: 0</div>
+    <div id="timer">経過時間: 0.0s</div>
+  </div>
 
   <p class="question" id="question"></p>
   <div id="choices"></div>
@@ -171,13 +209,16 @@
 let words = [];
 let currentQuestion = null;
 let filteredWords = [];
+let quizQueue = [];
+let elapsedTime = 0;
+let timerInterval = null;
+let correctCount = 0;
 
 // JSON読み込み
 fetch("words.json")
   .then(res => res.json())
   .then(data => { words = data; });
 
-// 自由範囲でクイズ開始
 function startQuiz() {
   const start = parseInt(document.getElementById("startNum").value);
   const end = parseInt(document.getElementById("endNum").value);
@@ -188,31 +229,52 @@ function startQuiz() {
   }
 
   filteredWords = words.slice(start-1, end);
+  quizQueue = shuffleArray([...filteredWords]);
+  correctCount = 0;
+
   document.getElementById("rangeSelection").style.display = "none";
   document.getElementById("quizBox").style.display = "block";
+  document.getElementById("quizBox").classList.remove("result");
+
+  elapsedTime = 0;
+  document.getElementById("timer").textContent = "経過時間: 0.0s";
+
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    elapsedTime += 0.1;
+    document.getElementById("timer").textContent = "経過時間: " + elapsedTime.toFixed(1) + "s";
+  }, 100);
+
   showQuestion();
 }
 
-// 範囲選択画面に戻る
-function goBack() {
-  document.getElementById("quizBox").style.display = "none";
-  document.getElementById("rangeSelection").style.display = "block";
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
 }
 
-// クイズ表示
 function showQuestion() {
+  if (quizQueue.length === 0) {
+    showResult();
+    return;
+  }
+
   const choicesDiv = document.getElementById("choices");
   choicesDiv.innerHTML = "";
 
-  currentQuestion = filteredWords[Math.floor(Math.random() * filteredWords.length)];
+  currentQuestion = quizQueue.shift();
+  document.getElementById("remaining").textContent = "残り問題: " + (quizQueue.length + 1);
+
   const q = document.getElementById("question");
   q.textContent = `単語: ${currentQuestion.word}`;
   q.style.opacity = 0;
   q.style.transform = "translateY(-20px)";
-  q.offsetWidth; // リフローでアニメーション再発火
+  q.offsetWidth;
   q.style.animation = "fadeSlide 0.5s forwards";
 
-  // 選択肢作成
   const choices = [currentQuestion.meaning];
   while (choices.length < 4) {
     const randomMeaning = filteredWords[Math.floor(Math.random() * filteredWords.length)].meaning;
@@ -229,11 +291,14 @@ function showQuestion() {
   });
 }
 
-// 答え判定
 function handleAnswer(choice) {
   const overlay = document.getElementById("overlay");
-  overlay.textContent = choice === currentQuestion.meaning ? "○" : "×";
-  overlay.className = choice === currentQuestion.meaning ? "correct show" : "incorrect show";
+  const isCorrect = choice === currentQuestion.meaning;
+
+  overlay.textContent = isCorrect ? "○" : "×";
+  overlay.className = isCorrect ? "correct show" : "incorrect show";
+
+  if (isCorrect) correctCount++;
 
   document.querySelectorAll(".choice-btn").forEach(b => b.disabled = true);
 
@@ -241,6 +306,32 @@ function handleAnswer(choice) {
     overlay.className = "";
     showQuestion();
   }, 700);
+}
+
+function showResult() {
+  clearInterval(timerInterval);
+
+  const totalQuestions = filteredWords.length;
+  const incorrectCount = totalQuestions - correctCount;
+  const penaltyTime = incorrectCount * 5;
+  const totalTime = elapsedTime + penaltyTime;
+  const correctRate = ((correctCount / totalQuestions) * 100).toFixed(1);
+
+  const quizBox = document.getElementById("quizBox");
+  quizBox.innerHTML = `
+    <h2>結果</h2>
+    <p>正答率: ${correctRate}% (${correctCount} / ${totalQuestions})</p>
+    <p>経過時間: ${elapsedTime.toFixed(1)} 秒</p>
+    <p>ペナルティ: ${penaltyTime} 秒 (不正解 ${incorrectCount} 問 ×5秒)</p>
+    <p>合計時間: ${totalTime.toFixed(1)} 秒</p>
+    <button onclick="restartQuiz()">もう一度挑戦</button>
+  `;
+  quizBox.classList.add("result");
+}
+
+function restartQuiz() {
+  document.getElementById("quizBox").style.display = "none";
+  document.getElementById("rangeSelection").style.display = "block";
 }
 </script>
 </body>
