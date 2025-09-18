@@ -314,4 +314,69 @@ function showQuestion() {
 
   const choices = [currentQuestion.meaning];
   while (choices.length < 4) {
-    const randomMeaning = filteredWords
+    const randomMeaning = filteredWords[Math.floor(Math.random() * filteredWords.length)].meaning;
+    if (!choices.includes(randomMeaning)) choices.push(randomMeaning);
+  }
+  choices.sort(() => Math.random() - 0.5);
+
+  choices.forEach(choice => {
+    const btn = document.createElement("button");
+    btn.textContent = choice;
+    btn.className = "choice-btn";
+    btn.onclick = () => handleAnswer(choice);
+    choicesDiv.appendChild(btn);
+  });
+}
+
+function handleAnswer(choice) {
+  stopTimer();
+  const overlay = document.getElementById("overlay");
+  const isCorrect = choice === currentQuestion.meaning;
+
+  overlay.textContent = isCorrect ? "○" : "×";
+  overlay.className = isCorrect ? "correct show" : "incorrect show";
+
+  if (isCorrect) correctCount++;
+  document.querySelectorAll(".choice-btn").forEach(b => b.disabled = true);
+
+  setTimeout(() => {
+    overlay.className = "";
+    startTimer();
+    showQuestion();
+  }, 700);
+}
+
+function showResult() {
+  stopTimer();
+
+  const totalQuestions = filteredWords.length;
+  const incorrectCount = totalQuestions - correctCount;
+  const penaltyTime = incorrectCount * 5;
+  const totalTime = elapsedTime + penaltyTime;
+  const correctRate = ((correctCount / totalQuestions) * 100).toFixed(1);
+
+  const quizBox = document.getElementById("quizBox");
+  quizBox.classList.add("result");
+  quizBox.innerHTML = `
+    <h2>結果</h2>
+    <p>正答率: ${correctRate}% (${correctCount} / ${totalQuestions})</p>
+    <p>経過時間: ${elapsedTime.toFixed(1)} 秒</p>
+    <p>ペナルティ: ${penaltyTime} 秒 (不正解 ${incorrectCount} 問 ×5秒)</p>
+    <p>合計時間: ${totalTime.toFixed(1)} 秒</p>
+    <button onclick="restartQuiz()">もう一度挑戦</button>
+  `;
+}
+
+function restartQuiz() {
+  location.reload(); // ページをリロードして全てリセット
+}
+
+function goBack() {
+  stopTimer();
+  if (countdownInterval) clearInterval(countdownInterval);
+  document.getElementById("quizBox").style.display = "none";
+  document.getElementById("rangeSelection").style.display = "block";
+}
+</script>
+</body>
+</html>
