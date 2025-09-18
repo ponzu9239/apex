@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+　<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -129,15 +129,17 @@
     font-size: 1em;
   }
 
-  /* カウントダウン（中央大きく表示） */
+  /* カウントダウン表示 */
   #countdown {
     position: fixed;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    font-size: 6em;
+    font-size: 8em;
+    font-weight: bold;
     color: #FFFFFF;
-    z-index: 100;
+    text-shadow: 2px 2px 6px rgba(0,0,0,0.5);
+    z-index: 1001;
     display: none;
   }
 
@@ -193,6 +195,7 @@
 <body>
 <h1>ターゲット1900 クイズ</h1>
 
+<!-- 範囲選択画面 -->
 <div id="rangeSelection">
   <p>範囲を入力してください（例: 1〜500）</p>
   <input type="number" id="startNum" placeholder="開始" min="1" max="1900">
@@ -201,6 +204,7 @@
   <button onclick="startQuiz()">開始</button>
 </div>
 
+<!-- クイズ画面 -->
 <div class="quiz-box" id="quizBox">
   <button id="backBtn" onclick="goBack()">&lt;</button>
   <div id="status">
@@ -211,7 +215,10 @@
   <div id="choices"></div>
 </div>
 
+<!-- カウントダウン表示 -->
 <div id="countdown"></div>
+
+<!-- ○×オーバーレイ -->
 <div id="overlay"></div>
 
 <script>
@@ -245,28 +252,32 @@ function startQuiz() {
   document.getElementById("rangeSelection").style.display = "none";
   document.getElementById("quizBox").style.display = "block";
   document.getElementById("quizBox").classList.remove("result");
-  document.getElementById("remaining").textContent = "残り問題: " + quizQueue.length;
-  document.getElementById("timer").textContent = "経過時間: 0.0s";
 
-  startCountdown(3);
+  document.getElementById("timer").textContent = "経過時間: 0.0s";
+  document.getElementById("remaining").textContent = "残り問題: " + quizQueue.length;
+
+  startCountdown();
 }
 
-function startCountdown(seconds) {
+function startCountdown() {
   const countdownEl = document.getElementById("countdown");
   countdownEl.style.display = "block";
-  countdownEl.textContent = seconds;
+  let count = 3;
 
-  let count = seconds;
+  countdownEl.textContent = count;
+
   countdownInterval = setInterval(() => {
     count--;
-    if (count >= 0) {
-      countdownEl.textContent = count === 0 ? "スタート!" : count;
-    } 
-    if (count < 0) {
+    if (count > 0) {
+      countdownEl.textContent = count;
+    } else {
       clearInterval(countdownInterval);
-      countdownEl.style.display = "none";
-      startTimer();
-      showQuestion();
+      countdownEl.textContent = "スタート！";
+      setTimeout(() => {
+        countdownEl.style.display = "none";
+        startTimer();
+        showQuestion();
+      }, 800);
     }
   }, 1000);
 }
@@ -372,4 +383,4 @@ function restartQuiz() {
 }
 
 function goBack() {
-  document.getElement
+  document.getElementBy
