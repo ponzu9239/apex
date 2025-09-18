@@ -4,17 +4,16 @@
 <meta charset="UTF-8">
 <title>ターゲット1900クイズ</title>
 <style>
-  /* --- 基本カラー設定 --- */
   :root {
-    --primary-bg: #1E3A8A; /* 濃いブルー背景 */
-    --card-bg: #FFFFFF;     /* カード背景 */
-    --button-bg: #3B82F6;   /* ボタンメイン */
-    --button-hover: #2563EB;/* ボタンホバー */
-    --accent: #F59E0B;      /* 次へボタンなどのアクセント */
-    --correct: #10B981;     /* 正解 */
-    --incorrect: #EF4444;   /* 不正解 */
-    --text-main: #1F2937;   /* 文字色 */
-    --text-light: #FFFFFF;  /* 明るい文字 */
+    --primary-bg: #1E3A8A;
+    --card-bg: #FFFFFF;
+    --button-bg: #3B82F6;
+    --button-hover: #2563EB;
+    --accent: #F59E0B;
+    --correct: #10B981;
+    --incorrect: #EF4444;
+    --text-main: #1F2937;
+    --text-light: #FFFFFF;
   }
 
   body {
@@ -42,8 +41,8 @@
   }
 
   .question {
-    font-size: 1.8em;
-    margin-bottom: 25px;
+    font-size: 2em;
+    margin-bottom: 30px;
     opacity: 0;
     transform: translateY(-20px);
     animation: fadeSlide 0.5s forwards;
@@ -54,18 +53,22 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
+  #choices {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+
   .choice-btn {
-    display: block;
-    width: 80%;
-    margin: 12px auto;
-    padding: 12px;
-    font-size: 1.1em;
+    padding: 20px;
+    font-size: 1.5em;
     border: none;
-    border-radius: 10px;
+    border-radius: 15px;
     background: var(--button-bg);
     color: var(--text-light);
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
   }
 
   .choice-btn:hover {
@@ -75,35 +78,37 @@
 
   .choice-btn.correct {
     background: var(--correct) !important;
+    animation: pulse 0.3s;
   }
 
   .choice-btn.incorrect {
     background: var(--incorrect) !important;
+    animation: shake 0.3s;
+  }
+
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+
+  @keyframes shake {
+    0% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    50% { transform: translateX(5px); }
+    75% { transform: translateX(-5px); }
+    100% { transform: translateX(0); }
   }
 
   #result {
     font-size: 1.5em;
-    margin-top: 20px;
     height: 40px;
+    margin-bottom: 15px;
   }
 
   #nextBtn {
-    margin-top: 25px;
-    padding: 12px 25px;
-    font-size: 1.2em;
-    border: none;
-    border-radius: 10px;
-    background: var(--accent);
-    color: var(--text-light);
-    cursor: pointer;
-    transition: all 0.3s ease;
+    display: none; /* 自動で次の問題に切り替えるので非表示 */
   }
-
-  #nextBtn:hover {
-    background: #D97706; /* 少し濃いめ */
-    transform: scale(1.05);
-  }
-
 </style>
 </head>
 <body>
@@ -120,7 +125,7 @@
 let words = [];
 let currentQuestion;
 
-// JSONファイルを読み込む
+// JSON読み込み
 fetch("words.json")
   .then(res => res.json())
   .then(data => {
@@ -128,44 +133,39 @@ fetch("words.json")
     showQuestion();
   });
 
-// 問題を表示
 function showQuestion() {
   document.getElementById("result").textContent = "";
-  const quizBox = document.getElementById("choices");
-  quizBox.innerHTML = "";
+  const choicesDiv = document.getElementById("choices");
+  choicesDiv.innerHTML = "";
 
   // ランダムに1問
   currentQuestion = words[Math.floor(Math.random() * words.length)];
 
-  // 問題文
   const q = document.getElementById("question");
   q.textContent = `単語: ${currentQuestion.word}`;
   q.classList.remove("fadeSlide");
-  void q.offsetWidth; // 再アニメーションのためのトリガー
+  void q.offsetWidth;
   q.style.animation = "fadeSlide 0.5s forwards";
 
-  // 選択肢作成（正解 + ランダムな3つ）
+  // 選択肢作成
   const choices = [currentQuestion.meaning];
   while (choices.length < 4) {
     const randomMeaning = words[Math.floor(Math.random() * words.length)].meaning;
     if (!choices.includes(randomMeaning)) choices.push(randomMeaning);
   }
-
-  // シャッフル
   choices.sort(() => Math.random() - 0.5);
 
-  // ボタン生成
+  // ボタン作成
   choices.forEach(choice => {
     const btn = document.createElement("button");
     btn.textContent = choice;
     btn.className = "choice-btn";
-    btn.onclick = () => checkAnswer(choice, btn);
-    quizBox.appendChild(btn);
+    btn.onclick = () => handleAnswer(btn, choice);
+    choicesDiv.appendChild(btn);
   });
 }
 
-// 答えチェック
-function checkAnswer(choice, btn) {
+function handleAnswer(btn, choice) {
   const result = document.getElementById("result");
   const buttons = document.querySelectorAll(".choice-btn");
   buttons.forEach(b => b.disabled = true);
@@ -177,9 +177,10 @@ function checkAnswer(choice, btn) {
     btn.classList.add("incorrect");
     result.textContent = `❌ 不正解。正解は「${currentQuestion.meaning}」`;
   }
-}
 
-document.getElementById("nextBtn").onclick = showQuestion;
+  // アニメーション後に次の問題
+  setTimeout(showQuestion, 700);
+}
 </script>
 </body>
 </html>
